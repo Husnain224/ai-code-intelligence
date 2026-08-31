@@ -1,14 +1,43 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type SecuritySummary = {
+  securityScore: number;
+  riskLevel: string;
+  filesScanned: number;
+  issuesFound: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+};
+
 export default function Dashboard() {
   const router = useRouter();
 
-  const [analysis, setAnalysis] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [analysis, setAnalysis] =
+    useState<any>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
+
+  const [security, setSecurity] =
+    useState<SecuritySummary | null>(null);
+
+  const [securityLoading, setSecurityLoading] =
+    useState(true);
+
+  /*
+   * =====================================================
+   * CODE ANALYSIS
+   * =====================================================
+   */
 
   async function runAnalysis() {
     try {
@@ -16,79 +45,193 @@ export default function Dashboard() {
       setError("");
 
       const response = await fetch(
-        "/api/analyze/full?owner=Husnain224&repo=ai-code-intelligence"
+        "/api/analyze/full?owner=Husnain224&repo=ai-code-intelligence",
+        {
+          cache: "no-store",
+        }
       );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Analysis failed");
+        throw new Error(
+          data.error ||
+            "Analysis failed"
+        );
       }
 
       setAnalysis(data);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Analysis failed"
+        err instanceof Error
+          ? err.message
+          : "Analysis failed"
       );
     } finally {
       setLoading(false);
     }
   }
 
+  /*
+   * =====================================================
+   * SECURITY ANALYSIS
+   * =====================================================
+   */
+
+  async function runSecurityScan() {
+    try {
+      setSecurityLoading(true);
+
+      const response = await fetch(
+        "/api/security?owner=Husnain224&repo=ai-code-intelligence&branch=main",
+        {
+          cache: "no-store",
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Security scan failed"
+        );
+      }
+
+      setSecurity(
+        data.summary
+      );
+    } catch (err) {
+      console.error(
+        "Security scan error:",
+        err
+      );
+    } finally {
+      setSecurityLoading(false);
+    }
+  }
+
+  /*
+   * =====================================================
+   * INITIAL LOAD
+   * =====================================================
+   */
+
   useEffect(() => {
     runAnalysis();
+    runSecurityScan();
   }, []);
 
-  const qualityScore = analysis?.summary?.qualityScore ?? 0;
-  const qualityLabel =
-    analysis?.summary?.qualityLabel ?? "Analyzing";
+  /*
+   * =====================================================
+   * ANALYSIS VALUES
+   * =====================================================
+   */
 
-  const bugRisk = analysis?.summary?.bugRisk ?? 0;
+  const qualityScore =
+    analysis?.summary
+      ?.qualityScore ?? 0;
+
+  const qualityLabel =
+    analysis?.summary
+      ?.qualityLabel ??
+    "Analyzing";
+
+  const bugRisk =
+    analysis?.summary
+      ?.bugRisk ?? 0;
 
   const filesAnalyzed =
-    analysis?.summary?.filesAnalyzed ?? 0;
+    analysis?.summary
+      ?.filesAnalyzed ?? 0;
 
   const totalLines =
-    analysis?.summary?.totalLines ?? 0;
+    analysis?.summary
+      ?.totalLines ?? 0;
 
   const totalTodos =
-    analysis?.summary?.totalTodos ?? 0;
+    analysis?.summary
+      ?.totalTodos ?? 0;
 
   const totalConsole =
-    analysis?.summary?.totalConsoleStatements ?? 0;
+    analysis?.summary
+      ?.totalConsoleStatements ??
+    0;
 
-  const riskFiles = (analysis?.files ?? [])
-    .map((file: any) => {
-      const risk =
-        file.longLines * 10 +
-        file.functionCount * 5;
+  /*
+   * =====================================================
+   * RISK FILES
+   * =====================================================
+   */
 
-      return {
-        file: file.path,
-        risk: Math.min(risk, 100),
-        complexity:
-          file.functionCount >= 8
-            ? "High"
-            : file.functionCount >= 4
-            ? "Medium"
-            : "Low",
-        issues:
-          file.todoCount +
-          file.consoleCount +
-          file.longLines,
-      };
-    })
-    .sort((a: any, b: any) => b.risk - a.risk)
-    .slice(0, 5);
+  const riskFiles =
+    (analysis?.files ?? [])
+      .map((file: any) => {
+        const risk =
+          file.longLines * 10 +
+          file.functionCount * 5;
+
+        return {
+          file: file.path,
+
+          risk: Math.min(
+            risk,
+            100
+          ),
+
+          complexity:
+            file.functionCount >=
+            8
+              ? "High"
+              : file.functionCount >=
+                4
+              ? "Medium"
+              : "Low",
+
+          issues:
+            file.todoCount +
+            file.consoleCount +
+            file.longLines,
+        };
+      })
+      .sort(
+        (a: any, b: any) =>
+          b.risk - a.risk
+      )
+      .slice(0, 5);
+
+  /*
+   * =====================================================
+   * SECURITY VALUES
+   * =====================================================
+   */
+
+  const securityScore =
+    security?.securityScore ?? 0;
+
+  const securityRisk =
+    security?.riskLevel ??
+    "Unknown";
+
+  /*
+   * =====================================================
+   * RENDER
+   * =====================================================
+   */
 
   return (
     <main className="dashboard-page">
 
-      {/* ================= SIDEBAR ================= */}
+      {/* ================================================= */}
+      {/* SIDEBAR */}
+      {/* ================================================= */}
 
       <aside className="dashboard-sidebar">
 
         <div className="dashboard-logo">
+
           <div className="logo-icon">
             AI
           </div>
@@ -96,6 +239,7 @@ export default function Dashboard() {
           <span>
             Code Intelligence
           </span>
+
         </div>
 
         <nav className="dashboard-nav">
@@ -105,7 +249,9 @@ export default function Dashboard() {
             label="Overview"
             active
             onClick={() =>
-              router.push("/dashboard")
+              router.push(
+                "/dashboard"
+              )
             }
           />
 
@@ -113,7 +259,9 @@ export default function Dashboard() {
             icon="⌘"
             label="Code Analysis"
             onClick={() =>
-              router.push("/dashboard/analysis")
+              router.push(
+                "/dashboard/analysis"
+              )
             }
           />
 
@@ -121,7 +269,9 @@ export default function Dashboard() {
             icon="◇"
             label="Security"
             onClick={() =>
-              router.push("/dashboard/security")
+              router.push(
+                "/dashboard/security"
+              )
             }
           />
 
@@ -129,7 +279,9 @@ export default function Dashboard() {
             icon="△"
             label="Bug Prediction"
             onClick={() =>
-              router.push("/dashboard/bugs")
+              router.push(
+                "/dashboard/bugs"
+              )
             }
           />
 
@@ -137,7 +289,9 @@ export default function Dashboard() {
             icon="◈"
             label="Technical Debt"
             onClick={() =>
-              router.push("/dashboard/debt")
+              router.push(
+                "/dashboard/debt"
+              )
             }
           />
 
@@ -145,7 +299,9 @@ export default function Dashboard() {
             icon="⌕"
             label="Semantic Search"
             onClick={() =>
-              router.push("/dashboard/search")
+              router.push(
+                "/dashboard/search"
+              )
             }
           />
 
@@ -153,7 +309,9 @@ export default function Dashboard() {
             icon="✦"
             label="AI Assistant"
             onClick={() =>
-              router.push("/dashboard/assistant")
+              router.push(
+                "/dashboard/assistant"
+              )
             }
           />
 
@@ -165,7 +323,9 @@ export default function Dashboard() {
             icon="⚙"
             label="Settings"
             onClick={() =>
-              router.push("/dashboard/settings")
+              router.push(
+                "/dashboard/settings"
+              )
             }
           />
 
@@ -176,6 +336,7 @@ export default function Dashboard() {
             </div>
 
             <div>
+
               <strong>
                 Developer
               </strong>
@@ -183,6 +344,7 @@ export default function Dashboard() {
               <span>
                 Free Plan
               </span>
+
             </div>
 
           </div>
@@ -191,11 +353,15 @@ export default function Dashboard() {
 
       </aside>
 
-      {/* ================= MAIN CONTENT ================= */}
+      {/* ================================================= */}
+      {/* MAIN CONTENT */}
+      {/* ================================================= */}
 
       <section className="dashboard-main">
 
+        {/* ================================================= */}
         {/* HEADER */}
+        {/* ================================================= */}
 
         <header className="dashboard-header">
 
@@ -215,19 +381,30 @@ export default function Dashboard() {
 
             <button
               className="header-button"
-              onClick={runAnalysis}
-              disabled={loading}
+              onClick={() => {
+                runAnalysis();
+                runSecurityScan();
+              }}
+              disabled={
+                loading ||
+                securityLoading
+              }
             >
               ↻{" "}
-              {loading
+
+              {loading ||
+              securityLoading
                 ? "Analyzing..."
                 : "Re-analyze"}
+
             </button>
 
             <button
               className="primary-small"
               onClick={() =>
-                alert("Repository connection coming next")
+                alert(
+                  "Repository connection coming next"
+                )
               }
             >
               + Repository
@@ -237,23 +414,38 @@ export default function Dashboard() {
 
         </header>
 
+        {/* ================================================= */}
         {/* ERROR */}
+        {/* ================================================= */}
 
         {error && (
+
           <div
             style={{
-              padding: "12px 16px",
-              marginBottom: "20px",
-              background: "#fee2e2",
-              color: "#991b1b",
-              borderRadius: "8px",
+              padding:
+                "12px 16px",
+
+              marginBottom:
+                "20px",
+
+              background:
+                "#fee2e2",
+
+              color:
+                "#991b1b",
+
+              borderRadius:
+                "8px",
             }}
           >
             {error}
           </div>
+
         )}
 
-        {/* ================= REPOSITORY ================= */}
+        {/* ================================================= */}
+        {/* REPOSITORY */}
+        {/* ================================================= */}
 
         <div className="repository-bar">
 
@@ -270,7 +462,8 @@ export default function Dashboard() {
               </strong>
 
               <span>
-                Husnain224 / ai-code-intelligence
+                Husnain224 /
+                ai-code-intelligence
               </span>
 
             </div>
@@ -279,9 +472,10 @@ export default function Dashboard() {
 
           <div className="repository-status">
 
-            <span className="online-dot"></span>
+            <span className="online-dot" />
 
-            {loading
+            {loading ||
+            securityLoading
               ? "Analyzing repository..."
               : "Analysis up to date"}
 
@@ -293,47 +487,94 @@ export default function Dashboard() {
 
         </div>
 
-        {/* ================= METRICS ================= */}
+        {/* ================================================= */}
+        {/* MAIN METRICS */}
+        {/* ================================================= */}
 
         <section className="dashboard-section">
 
           <div className="metrics-dashboard">
+
+            {/* CODE QUALITY */}
 
             <DashboardMetric
               title="Code Quality"
               value={
                 loading
                   ? "..."
-                  : String(qualityScore)
+                  : String(
+                      qualityScore
+                    )
               }
               suffix="/100"
               trend="Live"
-              description={qualityLabel}
+              description={
+                qualityLabel
+              }
+              onClick={() =>
+                router.push(
+                  "/dashboard/analysis"
+                )
+              }
             />
+
+            {/* SECURITY */}
 
             <DashboardMetric
               title="Security"
-              value="N/A"
-              suffix=""
-              trend="Coming"
-              description="Security analysis"
+              value={
+                securityLoading
+                  ? "..."
+                  : String(
+                      securityScore
+                    )
+              }
+              suffix="/100"
+              trend={
+                securityLoading
+                  ? "Scanning"
+                  : "Live"
+              }
+              description={
+                securityLoading
+                  ? "Security analysis"
+                  : securityRisk
+              }
+              onClick={() =>
+                router.push(
+                  "/dashboard/security"
+                )
+              }
             />
+
+            {/* BUG RISK */}
 
             <DashboardMetric
               title="Bug Risk"
               value={
                 loading
                   ? "..."
-                  : String(bugRisk)
+                  : String(
+                      bugRisk
+                    )
               }
               suffix="%"
               trend="Live"
               description={
                 bugRisk < 20
                   ? "Low Risk"
-                  : "Needs Attention"
+                  : bugRisk < 50
+                  ? "Medium Risk"
+                  : "High Risk"
+              }
+              onClick={() =>
+                router.push(
+                  "/dashboard/bugs"
+                )
               }
             />
+
+            {/* TECHNICAL DEBT */}
 
             <DashboardMetric
               title="Technical Debt"
@@ -341,13 +582,20 @@ export default function Dashboard() {
               suffix=""
               trend="Coming"
               description="Analysis pending"
+              onClick={() =>
+                router.push(
+                  "/dashboard/debt"
+                )
+              }
             />
 
           </div>
 
         </section>
 
-        {/* ================= REPOSITORY HEALTH ================= */}
+        {/* ================================================= */}
+        {/* REPOSITORY HEALTH */}
+        {/* ================================================= */}
 
         <section className="dashboard-section">
 
@@ -366,7 +614,9 @@ export default function Dashboard() {
 
             </div>
 
-            <select className="period-select">
+            <select
+              className="period-select"
+            >
 
               <option>
                 Current Analysis
@@ -389,9 +639,11 @@ export default function Dashboard() {
               </span>
 
               <strong>
+
                 {loading
                   ? "..."
                   : qualityScore}
+
               </strong>
 
               <small>
@@ -402,8 +654,24 @@ export default function Dashboard() {
 
             <div className="health-chart">
 
-              {[58, 63, 60, 68, 66, 72, 69, 75, 78, 81, 83, 86].map(
-                (height, index) => (
+              {[
+                58,
+                63,
+                60,
+                68,
+                66,
+                72,
+                69,
+                75,
+                78,
+                81,
+                83,
+                86,
+              ].map(
+                (
+                  height,
+                  index
+                ) => (
 
                   <div
                     key={index}
@@ -413,7 +681,8 @@ export default function Dashboard() {
                     <div
                       className="health-bar"
                       style={{
-                        height: `${height}%`,
+                        height:
+                          `${height}%`,
                       }}
                     />
 
@@ -432,7 +701,9 @@ export default function Dashboard() {
 
         </section>
 
-        {/* ================= TWO COLUMNS ================= */}
+        {/* ================================================= */}
+        {/* TWO COLUMNS */}
+        {/* ================================================= */}
 
         <section className="dashboard-section">
 
@@ -451,8 +722,8 @@ export default function Dashboard() {
                   </h2>
 
                   <p>
-                    Real data collected from
-                    GitHub.
+                    Real data collected
+                    from GitHub.
                   </p>
 
                 </div>
@@ -461,93 +732,49 @@ export default function Dashboard() {
 
               <div className="activity-list">
 
-                <div className="activity-item">
+                <StatRow
+                  icon="#"
+                  title="Files Analyzed"
+                  value={
+                    loading
+                      ? "..."
+                      : `${filesAnalyzed} files`
+                  }
+                />
 
-                  <div className="activity-icon">
-                    #
-                  </div>
+                <StatRow
+                  icon="≡"
+                  title="Total Lines"
+                  value={
+                    loading
+                      ? "..."
+                      : `${totalLines.toLocaleString()} lines`
+                  }
+                />
 
-                  <div className="activity-content">
+                <StatRow
+                  icon="✓"
+                  title="TODO Items"
+                  value={
+                    loading
+                      ? "..."
+                      : String(
+                          totalTodos
+                        )
+                  }
+                />
 
-                    <strong>
-                      Files Analyzed
-                    </strong>
-
-                    <span>
-                      {loading
-                        ? "..."
-                        : `${filesAnalyzed} files`}
-                    </span>
-
-                  </div>
-
-                </div>
-
-                <div className="activity-item">
-
-                  <div className="activity-icon">
-                    ≡
-                  </div>
-
-                  <div className="activity-content">
-
-                    <strong>
-                      Total Lines
-                    </strong>
-
-                    <span>
-                      {loading
-                        ? "..."
-                        : `${totalLines.toLocaleString()} lines`}
-                    </span>
-
-                  </div>
-
-                </div>
-
-                <div className="activity-item">
-
-                  <div className="activity-icon">
-                    ✓
-                  </div>
-
-                  <div className="activity-content">
-
-                    <strong>
-                      TODO Items
-                    </strong>
-
-                    <span>
-                      {loading
-                        ? "..."
-                        : totalTodos}
-                    </span>
-
-                  </div>
-
-                </div>
-
-                <div className="activity-item">
-
-                  <div className="activity-icon">
-                    !
-                  </div>
-
-                  <div className="activity-content">
-
-                    <strong>
-                      Console Statements
-                    </strong>
-
-                    <span>
-                      {loading
-                        ? "..."
-                        : totalConsole}
-                    </span>
-
-                  </div>
-
-                </div>
+                <StatRow
+                  icon="!"
+                  title="Console Statements"
+                  value={
+                    loading
+                      ? "..."
+                      : String(
+                          totalConsole
+                        )
+                  }
+                />
 
               </div>
 
@@ -566,8 +793,8 @@ export default function Dashboard() {
                   </h2>
 
                   <p>
-                    Files requiring engineering
-                    attention.
+                    Files requiring
+                    engineering attention.
                   </p>
 
                 </div>
@@ -629,7 +856,8 @@ export default function Dashboard() {
 
                   </div>
 
-                ) : riskFiles.length === 0 ? (
+                ) : riskFiles.length ===
+                  0 ? (
 
                   <div className="risk-table-row">
 
@@ -641,38 +869,47 @@ export default function Dashboard() {
 
                 ) : (
 
-                  riskFiles.map((file: any) => (
+                  riskFiles.map(
+                    (file: any) => (
 
-                    <div
-                      className="risk-table-row"
-                      key={file.file}
-                    >
-
-                      <span className="file-name">
-                        {file.file}
-                      </span>
-
-                      <span
-                        className={
-                          file.risk >= 80
-                            ? "risk-high"
-                            : "risk-medium"
+                      <div
+                        className="risk-table-row"
+                        key={
+                          file.file
                         }
                       >
-                        {file.risk}%
-                      </span>
 
-                      <span>
-                        {file.complexity}
-                      </span>
+                        <span className="file-name">
+                          {file.file}
+                        </span>
 
-                      <span>
-                        {file.issues}
-                      </span>
+                        <span
+                          className={
+                            file.risk >=
+                            80
+                              ? "risk-high"
+                              : "risk-medium"
+                          }
+                        >
+                          {file.risk}%
+                        </span>
 
-                    </div>
+                        <span>
+                          {
+                            file.complexity
+                          }
+                        </span>
 
-                  ))
+                        <span>
+                          {
+                            file.issues
+                          }
+                        </span>
+
+                      </div>
+
+                    )
+                  )
 
                 )}
 
@@ -684,7 +921,98 @@ export default function Dashboard() {
 
         </section>
 
-        {/* ================= QUICK ACTIONS ================= */}
+        {/* ================================================= */}
+        {/* SECURITY SUMMARY */}
+        {/* ================================================= */}
+
+        <section className="dashboard-section">
+
+          <div className="dashboard-card">
+
+            <div className="card-header">
+
+              <div>
+
+                <h2>
+                  Security Summary
+                </h2>
+
+                <p>
+                  Latest static security
+                  analysis.
+                </p>
+
+              </div>
+
+              <button
+                className="text-button"
+                onClick={() =>
+                  router.push(
+                    "/dashboard/security"
+                  )
+                }
+              >
+                View Security →
+              </button>
+
+            </div>
+
+            <div className="metrics-dashboard">
+
+              <SecurityMiniMetric
+                title="Security Score"
+                value={
+                  securityLoading
+                    ? "..."
+                    : `${securityScore}/100`
+                }
+              />
+
+              <SecurityMiniMetric
+                title="Critical"
+                value={
+                  securityLoading
+                    ? "..."
+                    : String(
+                        security?.critical ??
+                        0
+                      )
+                }
+              />
+
+              <SecurityMiniMetric
+                title="High"
+                value={
+                  securityLoading
+                    ? "..."
+                    : String(
+                        security?.high ??
+                        0
+                      )
+                }
+              />
+
+              <SecurityMiniMetric
+                title="Issues Found"
+                value={
+                  securityLoading
+                    ? "..."
+                    : String(
+                        security?.issuesFound ??
+                        0
+                      )
+                }
+              />
+
+            </div>
+
+          </div>
+
+        </section>
+
+        {/* ================================================= */}
+        {/* QUICK ACTIONS */}
+        {/* ================================================= */}
 
         <section className="dashboard-section">
 
@@ -699,8 +1027,8 @@ export default function Dashboard() {
                 </h2>
 
                 <p>
-                  Explore different areas of
-                  your repository.
+                  Explore different areas
+                  of your repository.
                 </p>
 
               </div>
@@ -710,7 +1038,8 @@ export default function Dashboard() {
             <div
               className="metrics-dashboard"
               style={{
-                marginTop: "20px",
+                marginTop:
+                  "20px",
               }}
             >
 
@@ -738,7 +1067,9 @@ export default function Dashboard() {
                 <div className="metric-value">
 
                   <strong>
-                    {filesAnalyzed}
+                    {
+                      filesAnalyzed
+                    }
                   </strong>
 
                   <span>
@@ -755,6 +1086,57 @@ export default function Dashboard() {
 
                   <span>
                     Code quality
+                  </span>
+
+                </div>
+
+              </button>
+
+              <button
+                className="dashboard-metric"
+                onClick={() =>
+                  router.push(
+                    "/dashboard/security"
+                  )
+                }
+              >
+
+                <div className="metric-title">
+
+                  <span>
+                    Security
+                  </span>
+
+                  <span>
+                    →
+                  </span>
+
+                </div>
+
+                <div className="metric-value">
+
+                  <strong>
+                    {
+                      securityLoading
+                        ? "..."
+                        : securityScore
+                    }
+                  </strong>
+
+                  <span>
+                    /100
+                  </span>
+
+                </div>
+
+                <div className="metric-bottom">
+
+                  <span className="metric-trend">
+                    Scan
+                  </span>
+
+                  <span>
+                    Security status
                   </span>
 
                 </div>
@@ -808,6 +1190,49 @@ export default function Dashboard() {
 
               </button>
 
+              <button
+                className="dashboard-metric"
+                onClick={() =>
+                  router.push(
+                    "/dashboard/assistant"
+                  )
+                }
+              >
+
+                <div className="metric-title">
+
+                  <span>
+                    AI Assistant
+                  </span>
+
+                  <span>
+                    →
+                  </span>
+
+                </div>
+
+                <div className="metric-value">
+
+                  <strong>
+                    AI
+                  </strong>
+
+                </div>
+
+                <div className="metric-bottom">
+
+                  <span className="metric-trend">
+                    Ask
+                  </span>
+
+                  <span>
+                    Repository assistant
+                  </span>
+
+                </div>
+
+              </button>
+
             </div>
 
           </div>
@@ -819,6 +1244,7 @@ export default function Dashboard() {
     </main>
   );
 }
+
 
 /* ================================================= */
 /* NAVIGATION ITEM */
@@ -840,7 +1266,9 @@ function NavItem({
       type="button"
       onClick={onClick}
       className={`dashboard-nav-item ${
-        active ? "active" : ""
+        active
+          ? "active"
+          : ""
       }`}
     >
 
@@ -854,6 +1282,7 @@ function NavItem({
   );
 }
 
+
 /* ================================================= */
 /* DASHBOARD METRIC */
 /* ================================================= */
@@ -864,15 +1293,46 @@ function DashboardMetric({
   suffix,
   trend,
   description,
+  onClick,
 }: {
   title: string;
   value: string;
   suffix: string;
   trend: string;
   description: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className="dashboard-metric">
+    <div
+      className="dashboard-metric"
+      onClick={onClick}
+      role={
+        onClick
+          ? "button"
+          : undefined
+      }
+      tabIndex={
+        onClick
+          ? 0
+          : undefined
+      }
+      onKeyDown={(event) => {
+
+        if (
+          onClick &&
+          event.key ===
+            "Enter"
+        ) {
+          onClick();
+        }
+
+      }}
+      style={{
+        cursor: onClick
+          ? "pointer"
+          : "default",
+      }}
+    >
 
       <div className="metric-title">
 
@@ -906,6 +1366,94 @@ function DashboardMetric({
 
         <span>
           {description}
+        </span>
+
+      </div>
+
+    </div>
+  );
+}
+
+
+/* ================================================= */
+/* STAT ROW */
+/* ================================================= */
+
+function StatRow({
+  icon,
+  title,
+  value,
+}: {
+  icon: string;
+  title: string;
+  value: string;
+}) {
+  return (
+    <div className="activity-item">
+
+      <div className="activity-icon">
+        {icon}
+      </div>
+
+      <div className="activity-content">
+
+        <strong>
+          {title}
+        </strong>
+
+        <span>
+          {value}
+        </span>
+
+      </div>
+
+    </div>
+  );
+}
+
+
+/* ================================================= */
+/* SECURITY MINI METRIC */
+/* ================================================= */
+
+function SecurityMiniMetric({
+  title,
+  value,
+}: {
+  title: string;
+  value: string;
+}) {
+  return (
+    <div className="dashboard-metric">
+
+      <div className="metric-title">
+
+        <span>
+          {title}
+        </span>
+
+        <span>
+          ◇
+        </span>
+
+      </div>
+
+      <div className="metric-value">
+
+        <strong>
+          {value}
+        </strong>
+
+      </div>
+
+      <div className="metric-bottom">
+
+        <span className="metric-trend">
+          Live
+        </span>
+
+        <span>
+          Security
         </span>
 
       </div>

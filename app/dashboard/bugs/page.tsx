@@ -1,874 +1,316 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-
-type AnalysisFile = {
-  path: string;
-  totalLines: number;
-  codeLines: number;
-  todoCount: number;
-  consoleCount: number;
-  longLines: number;
-  functionCount: number;
-};
-
-type AnalysisData = {
-  repository: string;
-  branch: string;
-  summary: {
-    filesAnalyzed: number;
-    totalLines: number;
-    totalTodos: number;
-    totalConsoleStatements: number;
-    qualityScore: number;
-    qualityLabel: string;
-    bugRisk: number;
-  };
-  files: AnalysisFile[];
-};
+import { useState } from "react";
 
 export default function BugPredictionPage() {
-  const router = useRouter();
+  const [filesChanged, setFilesChanged] = useState("5");
+  const [additions, setAdditions] = useState("100");
+  const [deletions, setDeletions] = useState("20");
+  const [totalChanges, setTotalChanges] = useState("120");
 
-  const [analysis, setAnalysis] =
-    useState<AnalysisData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState("");
 
-  const [loading, setLoading] =
-    useState(true);
+  async function predictBug() {
+    setLoading(true);
+    setError("");
+    setResult(null);
 
-  const [error, setError] =
-    useState("");
-
-  async function loadAnalysis() {
     try {
-      setLoading(true);
-      setError("");
+      const response = await fetch("/api/bug-prediction", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          filesChanged: Number(filesChanged),
+          additions: Number(additions),
+          deletions: Number(deletions),
+          totalChanges: Number(totalChanges),
+        }),
+      });
 
-      const response = await fetch(
-        "/api/analyze/full?owner=Husnain224&repo=ai-code-intelligence",
-        {
-          cache: "no-store",
-        }
-      );
+      const text = await response.text();
 
-      const data = await response.json();
+      let data;
 
-      if (!response.ok) {
+      try {
+        data = JSON.parse(text);
+      } catch {
         throw new Error(
-          data.error || "Analysis failed"
+          `API returned invalid response: ${text.substring(0, 200)}`
         );
       }
 
-      setAnalysis(data);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Analysis failed"
-      );
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error || "Prediction failed"
+        );
+      }
+
+      setResult(data);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    loadAnalysis();
-  }, []);
-
-  const bugRisk =
-    analysis?.summary?.bugRisk ?? 0;
-
-  const qualityScore =
-    analysis?.summary?.qualityScore ?? 0;
-
-  const files = analysis?.files ?? [];
-
-  const riskFiles = files
-    .map((file) => {
-      const risk =
-        file.functionCount * 5 +
-        file.longLines * 10 +
-        file.todoCount * 8 +
-        file.consoleCount * 3;
-
-      return {
-        ...file,
-        risk: Math.min(
-          Math.max(risk, 0),
-          100
-        ),
-      };
-    })
-    .sort(
-      (a, b) => b.risk - a.risk
-    );
-
   return (
-    <main className="dashboard-page">
-
-      {/* SIDEBAR */}
-
-      <aside className="dashboard-sidebar">
-
-        <div className="dashboard-logo">
-
-          <div className="logo-icon">
-            AI
-          </div>
-
-          <span>
-            Code Intelligence
-          </span>
-
-        </div>
-
-        <nav className="dashboard-nav">
-
-          <button
-            className="dashboard-nav-item"
-            onClick={() =>
-              router.push("/dashboard")
-            }
-          >
-            <span>▦</span>
-            Overview
-          </button>
-
-          <button
-            className="dashboard-nav-item"
-            onClick={() =>
-              router.push(
-                "/dashboard/analysis"
-              )
-            }
-          >
-            <span>⌘</span>
-            Code Analysis
-          </button>
-
-          <button
-            className="dashboard-nav-item"
-            onClick={() =>
-              router.push(
-                "/dashboard/security"
-              )
-            }
-          >
-            <span>◇</span>
-            Security
-          </button>
-
-          <button
-            className="dashboard-nav-item active"
-            onClick={() =>
-              router.push(
-                "/dashboard/bugs"
-              )
-            }
-          >
-            <span>△</span>
-            Bug Prediction
-          </button>
-
-          <button
-            className="dashboard-nav-item"
-          >
-            <span>◈</span>
-            Technical Debt
-          </button>
-
-          <button
-            className="dashboard-nav-item"
-          >
-            <span>⌕</span>
-            Semantic Search
-          </button>
-
-          <button
-            className="dashboard-nav-item"
-          >
-            <span>✦</span>
-            AI Assistant
-          </button>
-
-        </nav>
-
-        <div className="sidebar-bottom">
-
-          <button
-            className="dashboard-nav-item"
-          >
-            <span>⚙</span>
-            Settings
-          </button>
-
-          <div className="user-card">
-
-            <div className="user-avatar">
-              HS
-            </div>
-
-            <div>
-
-              <strong>
-                Developer
-              </strong>
-
-              <span>
-                Free Plan
-              </span>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </aside>
-
-      {/* MAIN */}
-
-      <section className="dashboard-main">
-
-        <header className="dashboard-header">
-
-          <div>
-
-            <p className="breadcrumb">
-              Workspace / Repository /
-              Bug Prediction
-            </p>
-
-            <h1>
-              Bug Prediction
-            </h1>
-
-          </div>
-
-          <div className="dashboard-actions">
-
-            <button
-              className="header-button"
-              onClick={loadAnalysis}
-              disabled={loading}
-            >
-              ↻{" "}
-              {loading
-                ? "Analyzing..."
-                : "Re-analyze"}
-            </button>
-
-          </div>
-
-        </header>
-
-        {/* REPOSITORY */}
-
-        <div className="repository-bar">
-
-          <div className="repository-info">
-
-            <div className="github-icon">
-              GH
-            </div>
-
-            <div>
-
-              <strong>
-                ai-code-intelligence
-              </strong>
-
-              <span>
-                Husnain224 /
-                ai-code-intelligence
-              </span>
-
-            </div>
-
-          </div>
-
-          <div className="repository-status">
-
-            <span className="online-dot"></span>
-
-            {loading
-              ? "Analyzing repository..."
-              : "Prediction complete"}
-
-            <span className="branch">
-              {analysis?.branch ?? "main"}
-            </span>
-
-          </div>
-
-        </div>
-
-        {/* ERROR */}
-
-        {error && (
-
-          <div
-            style={{
-              marginTop: "20px",
-              padding: "16px",
-              borderRadius: "10px",
-              background: "#fee2e2",
-              color: "#991b1b",
-            }}
-          >
-            {error}
-          </div>
-
-        )}
-
-        {/* METRICS */}
-
-        <section
-          className="dashboard-section"
-        >
-
-          <div
-            className="metrics-dashboard"
-          >
-
-            <DashboardMetric
-              title="Bug Risk"
-              value={
-                loading
-                  ? "..."
-                  : String(bugRisk)
-              }
-              suffix="%"
-              trend="Live"
-              description={
-                bugRisk < 20
-                  ? "Low Risk"
-                  : bugRisk < 50
-                  ? "Medium Risk"
-                  : "High Risk"
-              }
-            />
-
-            <DashboardMetric
-              title="Code Quality"
-              value={
-                loading
-                  ? "..."
-                  : String(qualityScore)
-              }
-              suffix="/100"
-              trend="Live"
-              description={
-                analysis?.summary
-                  ?.qualityLabel ??
-                "Analyzing"
-              }
-            />
-
-            <DashboardMetric
-              title="Files"
-              value={
-                loading
-                  ? "..."
-                  : String(files.length)
-              }
-              suffix=""
-              trend="Scanned"
-              description="Source files"
-            />
-
-            <DashboardMetric
-              title="Risky Files"
-              value={
-                loading
-                  ? "..."
-                  : String(
-                      riskFiles.filter(
-                        (file) =>
-                          file.risk >= 40
-                      ).length
-                    )
-              }
-              suffix=""
-              trend="Detected"
-              description="Need attention"
-            />
-
-          </div>
-
-        </section>
-
-        {/* BUG RISK OVERVIEW */}
-
-        <section
-          className="dashboard-section"
-        >
-
-          <div
-            className="dashboard-card"
-          >
-
-            <div className="card-header">
-
-              <div>
-
-                <h2>
-                  Bug Risk Overview
-                </h2>
-
-                <p>
-                  Estimated risk based on
-                  code complexity and
-                  detected code issues.
-                </p>
-
-              </div>
-
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "30px",
-                padding: "30px 10px",
-              }}
-            >
-
-              <div
-                style={{
-                  width: "150px",
-                  height: "150px",
-                  borderRadius: "50%",
-                  border:
-                    "12px solid #e5e7eb",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent:
-                    "center",
-                }}
-              >
-
-                <strong
-                  style={{
-                    fontSize: "36px",
-                  }}
-                >
-                  {bugRisk}%
-                </strong>
-
-                <span>
-                  Bug Risk
-                </span>
-
-              </div>
-
-              <div>
-
-                <h3>
-                  {bugRisk < 20
-                    ? "Low Risk"
-                    : bugRisk < 50
-                    ? "Moderate Risk"
-                    : "High Risk"}
-                </h3>
-
-                <p>
-                  {bugRisk < 20
-                    ? "Your repository currently shows a low probability of bug-related issues."
-                    : "Some parts of your repository require additional engineering attention."}
-                </p>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </section>
-
-        {/* RISK FILES */}
-
-        <section
-          className="dashboard-section"
-        >
-
-          <div
-            className="dashboard-card"
-          >
-
-            <div className="card-header">
-
-              <div>
-
-                <h2>
-                  Files With Highest Bug Risk
-                </h2>
-
-                <p>
-                  Files that may require
-                  additional review.
-                </p>
-
-              </div>
-
-            </div>
-
-            <div className="risk-table">
-
-              <div
-                className="risk-table-header"
-              >
-
-                <span>
-                  FILE
-                </span>
-
-                <span>
-                  RISK
-                </span>
-
-                <span>
-                  FUNCTIONS
-                </span>
-
-                <span>
-                  ISSUES
-                </span>
-
-              </div>
-
-              {loading ? (
-
-                <div
-                  className="risk-table-row"
-                >
-
-                  <span>
-                    Analyzing...
-                  </span>
-
-                </div>
-
-              ) : riskFiles.length === 0 ? (
-
-                <div
-                  className="risk-table-row"
-                >
-
-                  <span>
-                    No files found
-                  </span>
-
-                </div>
-
-              ) : (
-
-                riskFiles.map(
-                  (file) => {
-
-                    const issues =
-                      file.todoCount +
-                      file.consoleCount +
-                      file.longLines;
-
-                    return (
-
-                      <div
-                        className="risk-table-row"
-                        key={file.path}
-                      >
-
-                        <span
-                          className="file-name"
-                        >
-                          {file.path}
-                        </span>
-
-                        <span
-                          className={
-                            file.risk >= 60
-                              ? "risk-high"
-                              : file.risk >= 30
-                              ? "risk-medium"
-                              : "risk-high"
-                          }
-                        >
-                          {file.risk}%
-                        </span>
-
-                        <span>
-                          {file.functionCount}
-                        </span>
-
-                        <span>
-                          {issues}
-                        </span>
-
-                      </div>
-
-                    );
-                  }
-                )
-
-              )}
-
-            </div>
-
-          </div>
-
-        </section>
-
-        {/* RISK FACTORS */}
-
-        <section
-          className="dashboard-section"
-        >
-
-          <div
-            className="dashboard-grid"
-          >
-
-            <RiskCard
-              title="Function Complexity"
-              value={
-                files.reduce(
-                  (sum, file) =>
-                    sum +
-                    file.functionCount,
-                  0
-                )
-              }
-              description="Total functions detected"
-            />
-
-            <RiskCard
-              title="Long Lines"
-              value={
-                files.reduce(
-                  (sum, file) =>
-                    sum +
-                    file.longLines,
-                  0
-                )
-              }
-              description="Lines exceeding 100 characters"
-            />
-
-            <RiskCard
-              title="TODO / FIXME"
-              value={
-                analysis?.summary
-                  ?.totalTodos ?? 0
-              }
-              description="Unresolved development markers"
-            />
-
-            <RiskCard
-              title="Console Statements"
-              value={
-                analysis?.summary
-                  ?.totalConsoleStatements ??
-                0
-              }
-              description="Debugging statements detected"
-            />
-
-          </div>
-
-        </section>
-
-        {/* RECOMMENDATION */}
-
-        <section
-          className="dashboard-section"
-        >
-
-          <div
-            className="dashboard-card"
-          >
-
-            <div className="card-header">
-
-              <div>
-
-                <h2>
-                  Recommended Action
-                </h2>
-
-                <p>
-                  Start reviewing the highest
-                  risk files first.
-                </p>
-
-              </div>
-
-            </div>
-
-            <div
-              style={{
-                padding: "20px",
-              }}
-            >
-
-              {riskFiles.length > 0 ? (
-
-                <>
-
-                  <h3>
-                    Start with:
-                  </h3>
-
-                  <p
-                    style={{
-                      fontSize: "18px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {riskFiles[0].path}
-                  </p>
-
-                  <p>
-                    This file currently has
-                    the highest calculated
-                    risk score of{" "}
-                    <strong>
-                      {riskFiles[0].risk}%
-                    </strong>.
-                  </p>
-
-                </>
-
-              ) : (
-
-                <p>
-                  No high-risk files detected.
-                </p>
-
-              )}
-
-            </div>
-
-          </div>
-
-        </section>
-
-      </section>
-
-    </main>
-  );
-}
-
-/* ================================================= */
-/* METRIC */
-/* ================================================= */
-
-function DashboardMetric({
-  title,
-  value,
-  suffix,
-  trend,
-  description,
-}: {
-  title: string;
-  value: string;
-  suffix: string;
-  trend: string;
-  description: string;
-}) {
-  return (
-    <div className="dashboard-metric">
-
-      <div className="metric-title">
-
-        <span>
-          {title}
-        </span>
-
-        <span className="metric-menu">
-          •••
-        </span>
-
-      </div>
-
-      <div className="metric-value">
-
-        <strong>
-          {value}
-        </strong>
-
-        <span>
-          {suffix}
-        </span>
-
-      </div>
-
-      <div className="metric-bottom">
-
-        <span className="metric-trend">
-          {trend}
-        </span>
-
-        <span>
-          {description}
-        </span>
-
-      </div>
-
-    </div>
-  );
-}
-
-/* ================================================= */
-/* RISK CARD */
-/* ================================================= */
-
-function RiskCard({
-  title,
-  value,
-  description,
-}: {
-  title: string;
-  value: number;
-  description: string;
-}) {
-  return (
-    <div className="dashboard-card">
-
-      <div className="card-header">
-
-        <div>
-
-          <h2>
-            {title}
-          </h2>
-
-          <p>
-            {description}
+    <main className="min-h-screen bg-slate-50 px-6 py-10">
+      <div className="mx-auto max-w-6xl">
+
+        {/* Header */}
+        <div className="mb-8">
+          <p className="text-sm text-blue-600">
+            Workspace / Bug Prediction
           </p>
 
+          <h1 className="mt-2 text-4xl font-bold text-slate-950">
+            Bug Prediction
+          </h1>
+
+          <p className="mt-2 text-slate-500">
+            Predict the probability that a code change may
+            introduce bugs using machine learning.
+          </p>
         </div>
 
+        <div className="grid gap-6 md:grid-cols-2">
+
+          {/* Input Card */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-950">
+                  Commit Analysis
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Enter commit statistics to calculate bug risk.
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">
+                AI
+              </div>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-2">
+
+              {/* Files */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Files Changed
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  value={filesChanged}
+                  onChange={(e) =>
+                    setFilesChanged(e.target.value)
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-200"
+                />
+              </div>
+
+              {/* Additions */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Lines Added
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  value={additions}
+                  onChange={(e) =>
+                    setAdditions(e.target.value)
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-200"
+                />
+              </div>
+
+              {/* Deletions */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Lines Deleted
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  value={deletions}
+                  onChange={(e) =>
+                    setDeletions(e.target.value)
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-200"
+                />
+              </div>
+
+              {/* Total */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Total Changes
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  value={totalChanges}
+                  onChange={(e) =>
+                    setTotalChanges(e.target.value)
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-200"
+                />
+              </div>
+
+            </div>
+
+            {/* Button */}
+            <button
+              onClick={predictBug}
+              disabled={loading}
+              className="mt-7 w-full rounded-xl bg-slate-950 px-5 py-4 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading
+                ? "Analyzing..."
+                : "Predict Bug Risk →"}
+            </button>
+
+            {/* Error */}
+            {error && (
+              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+          </div>
+
+          {/* Result Card */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+
+            <div>
+              <h2 className="text-2xl font-bold text-slate-950">
+                Prediction Result
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Machine learning analysis of the commit.
+              </p>
+            </div>
+
+            {!result && !loading && (
+              <div className="flex min-h-[350px] flex-col items-center justify-center text-center">
+
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-3xl">
+                  ◇
+                </div>
+
+                <h3 className="text-lg font-bold text-slate-950">
+                  No prediction yet
+                </h3>
+
+                <p className="mt-2 max-w-sm text-sm text-slate-500">
+                  Enter commit information and click
+                  Predict Bug Risk.
+                </p>
+
+              </div>
+            )}
+
+            {loading && (
+              <div className="flex min-h-[350px] flex-col items-center justify-center">
+                <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-slate-950" />
+
+                <p className="font-medium text-slate-600">
+                  Analyzing commit...
+                </p>
+              </div>
+            )}
+
+            {result && !loading && (
+              <div className="mt-8">
+
+                {/* Risk */}
+                <div className="rounded-2xl bg-slate-50 p-6 text-center">
+
+                  <p className="text-sm font-medium text-slate-500">
+                    Bug Risk
+                  </p>
+
+                  <p className="mt-2 text-6xl font-bold text-slate-950">
+                    {result.bugRisk}%
+                  </p>
+
+                  <p className="mt-3 text-xl font-bold text-slate-700">
+                    {result.label}
+                  </p>
+
+                </div>
+
+                {/* Features */}
+                <div className="mt-6">
+                  <h3 className="mb-4 font-bold text-slate-950">
+                    Commit Statistics
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-3">
+
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <p className="text-xs text-slate-500">
+                        Files Changed
+                      </p>
+
+                      <p className="mt-1 text-xl font-bold">
+                        {result.features.filesChanged}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <p className="text-xs text-slate-500">
+                        Lines Added
+                      </p>
+
+                      <p className="mt-1 text-xl font-bold">
+                        {result.features.additions}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <p className="text-xs text-slate-500">
+                        Lines Deleted
+                      </p>
+
+                      <p className="mt-1 text-xl font-bold">
+                        {result.features.deletions}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <p className="text-xs text-slate-500">
+                        Total Changes
+                      </p>
+
+                      <p className="mt-1 text-xl font-bold">
+                        {result.features.totalChanges}
+                      </p>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+          </div>
+
+        </div>
       </div>
-
-      <div
-        style={{
-          padding: "20px",
-        }}
-      >
-
-        <strong
-          style={{
-            fontSize: "36px",
-          }}
-        >
-          {value}
-        </strong>
-
-      </div>
-
-    </div>
+    </main>
   );
 }

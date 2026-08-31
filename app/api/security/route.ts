@@ -1,19 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Octokit } from "octokit";
 
-const SOURCE_EXTENSIONS = [
-  ".js",
-  ".jsx",
-  ".ts",
-  ".tsx",
-  ".py",
-  ".java",
-  ".cpp",
-  ".c",
-  ".cs",
-  ".go",
-  ".rs",
-];
+const DEFAULT_OWNER = "Husnain224";
+const DEFAULT_REPO = "ai-code-intelligence";
+const DEFAULT_BRANCH = "main";
 
 type SecurityIssue = {
   file: string;
@@ -24,211 +13,61 @@ type SecurityIssue = {
   code: string;
 };
 
-function scanCode(
-  code: string,
-  filePath: string
-): SecurityIssue[] {
-  const issues: SecurityIssue[] = [];
+type SecurityResult = {
+  repository: string;
+  branch: string;
 
-  const lines = code.split("\n");
+  summary: {
+    securityScore: number;
+    riskLevel: string;
+    filesScanned: number;
+    issuesFound: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
 
-  lines.forEach((line, index) => {
-    const lineNumber = index + 1;
-    const trimmed = line.trim();
+  issues: SecurityIssue[];
+};
 
-    // Hardcoded password
-    if (
-      /(password|passwd|pwd)\s*[:=]\s*["'][^"']+["']/i.test(
-        line
-      )
-    ) {
-      issues.push({
-        file: filePath,
-        line: lineNumber,
-        type: "Hardcoded Password",
-        severity: "High",
-        message:
-          "A possible hardcoded password was detected.",
-        code: trimmed,
-      });
-    }
+function getSeverityWeight(
+  severity: SecurityIssue["severity"]
+) {
+  switch (severity) {
+    case "Critical":
+      return 30;
 
-    // API key
-    if (
-      /(api[_-]?key|apikey)\s*[:=]\s*["'][^"']+["']/i.test(
-        line
-      )
-    ) {
-      issues.push({
-        file: filePath,
-        line: lineNumber,
-        type: "Hardcoded API Key",
-        severity: "Critical",
-        message:
-          "A possible hardcoded API key was detected.",
-        code: trimmed,
-      });
-    }
+    case "High":
+      return 20;
 
-    // Secret
-    if (
-      /(secret|client_secret)\s*[:=]\s*["'][^"']+["']/i.test(
-        line
-      )
-    ) {
-      issues.push({
-        file: filePath,
-        line: lineNumber,
-        type: "Hardcoded Secret",
-        severity: "Critical",
-        message:
-          "A possible hardcoded secret was detected.",
-        code: trimmed,
-      });
-    }
+    case "Medium":
+      return 10;
 
-    // Private key
-    if (
-      line.includes("-----BEGIN PRIVATE KEY-----") ||
-      line.includes("-----BEGIN RSA PRIVATE KEY-----")
-    ) {
-      issues.push({
-        file: filePath,
-        line: lineNumber,
-        type: "Private Key",
-        severity: "Critical",
-        message:
-          "A private cryptographic key may be exposed.",
-        code: trimmed,
-      });
-    }
+    case "Low":
+      return 5;
 
-    // eval()
-    if (/\beval\s*\(/.test(line)) {
-      issues.push({
-        file: filePath,
-        line: lineNumber,
-        type: "Dangerous eval()",
-        severity: "High",
-        message:
-          "eval() can execute dynamically generated code.",
-        code: trimmed,
-      });
-    }
-
-    // innerHTML
-    if (/innerHTML\s*=/.test(line)) {
-      issues.push({
-        file: filePath,
-        line: lineNumber,
-        type: "Potential XSS",
-        severity: "High",
-        message:
-          "Direct innerHTML assignment may introduce XSS.",
-        code: trimmed,
-      });
-    }
-
-    // dangerouslySetInnerHTML
-    if (line.includes("dangerouslySetInnerHTML")) {
-      issues.push({
-        file: filePath,
-        line: lineNumber,
-        type: "Potential XSS",
-        severity: "High",
-        message:
-          "dangerouslySetInnerHTML should only be used with trusted or sanitized content.",
-        code: trimmed,
-      });
-    }
-
-    // Insecure HTTP
-    if (
-      /http:\/\//i.test(line) &&
-      !line.includes("localhost")
-    ) {
-      issues.push({
-        file: filePath,
-        line: lineNumber,
-        type: "Insecure HTTP",
-        severity: "Medium",
-        message:
-          "An unencrypted HTTP URL was detected.",
-        code: trimmed,
-      });
-    }
-
-    // Possible SQL injection
-    if (
-      /(SELECT|INSERT|UPDATE|DELETE).*(\+|\$\{)/i.test(
-        line
-      )
-    ) {
-      issues.push({
-        file: filePath,
-        line: lineNumber,
-        type: "Possible SQL Injection",
-        severity: "High",
-        message:
-          "SQL appears to be constructed using string concatenation.",
-        code: trimmed,
-      });
-    }
-
-    // Command execution
-    if (
-      /\b(exec|execSync|spawn|system)\s*\(/.test(
-        line
-      )
-    ) {
-      issues.push({
-        file: filePath,
-        line: lineNumber,
-        type: "Command Execution",
-        severity: "High",
-        message:
-          "Dynamic command execution can be dangerous when user input is involved.",
-        code: trimmed,
-      });
-    }
-  });
-
-  return issues;
+    default:
+      return 0;
+  }
 }
 
 function calculateSecurityScore(
   issues: SecurityIssue[]
 ) {
-  let score = 100;
+  let risk = 0;
 
-  const critical = issues.filter(
-    (issue) => issue.severity === "Critical"
-  ).length;
-
-  const high = issues.filter(
-    (issue) => issue.severity === "High"
-  ).length;
-
-  const medium = issues.filter(
-    (issue) => issue.severity === "Medium"
-  ).length;
-
-  const low = issues.filter(
-    (issue) => issue.severity === "Low"
-  ).length;
-
-  score -= critical * 20;
-  score -= high * 10;
-  score -= medium * 5;
-  score -= low * 2;
+  for (const issue of issues) {
+    risk += getSeverityWeight(issue.severity);
+  }
 
   return Math.max(
     0,
-    Math.min(100, Math.round(score))
+    Math.min(100, 100 - risk)
   );
 }
 
-function getSecurityLabel(score: number) {
+function getRiskLevel(score: number) {
   if (score >= 90) {
     return "Excellent";
   }
@@ -241,7 +80,336 @@ function getSecurityLabel(score: number) {
     return "Needs Attention";
   }
 
-  return "Critical";
+  if (score >= 25) {
+    return "High Risk";
+  }
+
+  return "Critical Risk";
+}
+
+function shouldAnalyzeFile(path: string) {
+  const lower = path.toLowerCase();
+
+  const ignoredExtensions = [
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".webp",
+    ".mp4",
+    ".mp3",
+    ".zip",
+    ".pdf",
+    ".lock",
+  ];
+
+  return !ignoredExtensions.some(
+    (extension) =>
+      lower.endsWith(extension)
+  );
+}
+
+function scanFile(
+  path: string,
+  content: string
+): SecurityIssue[] {
+  const issues: SecurityIssue[] = [];
+
+  const lines = content.split("\n");
+
+  lines.forEach((line, index) => {
+    const lineNumber = index + 1;
+
+    /*
+     * HARDCODED SECRETS
+     */
+
+    if (
+      /(api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|password)\s*[:=]\s*["'][^"']{8,}["']/i.test(
+        line
+      )
+    ) {
+      issues.push({
+        file: path,
+        line: lineNumber,
+        type: "Hardcoded Secret",
+        severity: "Critical",
+        message:
+          "Possible hardcoded secret or credential detected.",
+        code: line.trim(),
+      });
+    }
+
+    /*
+     * GITHUB TOKEN
+     */
+
+    if (
+      /gh[pousr]_[A-Za-z0-9_]{20,}/.test(
+        line
+      )
+    ) {
+      issues.push({
+        file: path,
+        line: lineNumber,
+        type: "GitHub Token",
+        severity: "Critical",
+        message:
+          "Possible GitHub access token detected.",
+        code: line.trim(),
+      });
+    }
+
+    /*
+     * OPENAI STYLE API KEY
+     */
+
+    if (
+      /sk-[A-Za-z0-9]{20,}/.test(line)
+    ) {
+      issues.push({
+        file: path,
+        line: lineNumber,
+        type: "API Key",
+        severity: "Critical",
+        message:
+          "Possible API key detected in source code.",
+        code: line.trim(),
+      });
+    }
+
+    /*
+     * EVAL
+     */
+
+    if (
+      /\beval\s*\(/.test(line)
+    ) {
+      issues.push({
+        file: path,
+        line: lineNumber,
+        type: "Unsafe Eval",
+        severity: "High",
+        message:
+          "Use of eval() can execute arbitrary code.",
+        code: line.trim(),
+      });
+    }
+
+    /*
+     * INNERHTML
+     */
+
+    if (
+      /\.innerHTML\s*=/.test(line)
+    ) {
+      issues.push({
+        file: path,
+        line: lineNumber,
+        type: "Potential XSS",
+        severity: "High",
+        message:
+          "Direct innerHTML assignment may introduce XSS vulnerabilities.",
+        code: line.trim(),
+      });
+    }
+
+    /*
+     * DANGEROUS HTML
+     */
+
+    if (
+      /dangerouslySetInnerHTML/.test(
+        line
+      )
+    ) {
+      issues.push({
+        file: path,
+        line: lineNumber,
+        type: "Potential XSS",
+        severity: "High",
+        message:
+          "dangerouslySetInnerHTML should only be used with trusted or sanitized content.",
+        code: line.trim(),
+      });
+    }
+
+    /*
+     * SQL STRING CONCATENATION
+     */
+
+    if (
+      /(SELECT|INSERT|UPDATE|DELETE).*(\+|\$\{)/i.test(
+        line
+      )
+    ) {
+      issues.push({
+        file: path,
+        line: lineNumber,
+        type: "Potential SQL Injection",
+        severity: "High",
+        message:
+          "SQL query appears to use string interpolation or concatenation.",
+        code: line.trim(),
+      });
+    }
+
+    /*
+     * COMMAND EXECUTION
+     */
+
+    if (
+      /child_process|exec\s*\(|execSync\s*\(|spawn\s*\(/.test(
+        line
+      )
+    ) {
+      issues.push({
+        file: path,
+        line: lineNumber,
+        type: "Command Execution",
+        severity: "High",
+        message:
+          "Command execution can become dangerous when user input is not validated.",
+        code: line.trim(),
+      });
+    }
+
+    /*
+     * DISABLE TLS VERIFICATION
+     */
+
+    if (
+      /rejectUnauthorized\s*:\s*false/.test(
+        line
+      )
+    ) {
+      issues.push({
+        file: path,
+        line: lineNumber,
+        type: "TLS Verification Disabled",
+        severity: "Medium",
+        message:
+          "TLS certificate verification is disabled.",
+        code: line.trim(),
+      });
+    }
+
+    /*
+     * HTTP URL
+     */
+
+    if (
+      /http:\/\/(?!localhost)/i.test(
+        line
+      )
+    ) {
+      issues.push({
+        file: path,
+        line: lineNumber,
+        type: "Insecure HTTP",
+        severity: "Low",
+        message:
+          "HTTP connection detected instead of HTTPS.",
+        code: line.trim(),
+      });
+    }
+  });
+
+  return issues;
+}
+
+async function getGitHubFiles(
+  owner: string,
+  repo: string,
+  branch: string,
+  token?: string
+) {
+  const headers: HeadersInit = {
+    Accept:
+      "application/vnd.github+json",
+    "X-GitHub-Api-Version":
+      "2022-11-28",
+  };
+
+  if (token) {
+    headers.Authorization =
+      `Bearer ${token}`;
+  }
+
+  const response = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
+    {
+      headers,
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `GitHub API error: ${response.status}`
+    );
+  }
+
+  const data = await response.json();
+
+  return data.tree.filter(
+    (item: {
+      type: string;
+      path: string;
+    }) =>
+      item.type === "blob" &&
+      shouldAnalyzeFile(item.path)
+  );
+}
+
+async function getFileContent(
+  owner: string,
+  repo: string,
+  path: string,
+  branch: string,
+  token?: string
+) {
+  const headers: HeadersInit = {
+    Accept:
+      "application/vnd.github+json",
+    "X-GitHub-Api-Version":
+      "2022-11-28",
+  };
+
+  if (token) {
+    headers.Authorization =
+      `Bearer ${token}`;
+  }
+
+  const response = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(
+      path
+    )}?ref=${encodeURIComponent(branch)}`,
+    {
+      headers,
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = await response.json();
+
+  if (
+    data.type !== "file" ||
+    !data.content
+  ) {
+    return null;
+  }
+
+  return Buffer.from(
+    data.content,
+    "base64"
+  ).toString("utf-8");
 }
 
 export async function GET(
@@ -252,130 +420,59 @@ export async function GET(
       new URL(request.url);
 
     const owner =
-      searchParams.get("owner");
+      searchParams.get("owner") ||
+      DEFAULT_OWNER;
 
     const repo =
-      searchParams.get("repo");
-
-    if (!owner || !repo) {
-      return NextResponse.json(
-        {
-          error:
-            "Owner and repository are required.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    const octokit = new Octokit();
-
-    // Get repository
-    const repository =
-      await octokit.rest.repos.get({
-        owner,
-        repo,
-      });
+      searchParams.get("repo") ||
+      DEFAULT_REPO;
 
     const branch =
-      repository.data.default_branch;
+      searchParams.get("branch") ||
+      DEFAULT_BRANCH;
 
-    // Get latest branch
-    const branchData =
-      await octokit.rest.repos.getBranch({
+    const token =
+      process.env.GITHUB_TOKEN;
+
+    const files =
+      await getGitHubFiles(
         owner,
         repo,
         branch,
-      });
-
-    const commitSha =
-      branchData.data.commit.sha;
-
-    // Get repository tree
-    const tree =
-      await octokit.rest.git.getTree({
-        owner,
-        repo,
-        tree_sha: commitSha,
-        recursive: "true",
-      });
-
-    // Find source files
-    const sourceFiles =
-      tree.data.tree.filter(
-        (item) =>
-          item.type === "blob" &&
-          item.path &&
-          SOURCE_EXTENSIONS.some(
-            (extension) =>
-              item.path!
-                .toLowerCase()
-                .endsWith(extension)
-          )
+        token
       );
 
-    // Keep scan fast
-    const selectedFiles =
-      sourceFiles.slice(0, 10);
+    const issues: SecurityIssue[] =
+      [];
 
-    // Download files in parallel
-    const results =
-      await Promise.all(
-        selectedFiles.map(
-          async (file) => {
-            if (!file.path) {
-              return [];
-            }
+    for (const file of files) {
+      const content =
+        await getFileContent(
+          owner,
+          repo,
+          file.path,
+          branch,
+          token
+        );
 
-            try {
-              const response =
-                await octokit.rest.repos.getContent(
-                  {
-                    owner,
-                    repo,
-                    path: file.path,
-                    ref: branch,
-                  }
-                );
+      if (!content) {
+        continue;
+      }
 
-              if (
-                Array.isArray(response.data) ||
-                response.data.type !== "file" ||
-                !response.data.content
-              ) {
-                return [];
-              }
+      const fileIssues =
+        scanFile(
+          file.path,
+          content
+        );
 
-              const code =
-                Buffer.from(
-                  response.data.content,
-                  "base64"
-                ).toString("utf-8");
-
-              // Ignore very large files
-              if (code.length > 200000) {
-                return [];
-              }
-
-              return scanCode(
-                code,
-                file.path
-              );
-            } catch {
-              return [];
-            }
-          }
-        )
-      );
-
-    const issues =
-      results.flat();
+      issues.push(...fileIssues);
+    }
 
     const critical =
       issues.filter(
         (issue) =>
-          issue.severity === "Critical"
+          issue.severity ===
+          "Critical"
       ).length;
 
     const high =
@@ -397,50 +494,54 @@ export async function GET(
       ).length;
 
     const securityScore =
-      calculateSecurityScore(issues);
-
-    const securityLabel =
-      getSecurityLabel(
-        securityScore
+      calculateSecurityScore(
+        issues
       );
 
-    return NextResponse.json({
-      repository: `${owner}/${repo}`,
+    const result: SecurityResult =
+      {
+        repository:
+          `${owner}/${repo}`,
 
-      branch,
+        branch,
 
-      summary: {
-        filesScanned:
-          selectedFiles.length,
+        summary: {
+          securityScore,
+          riskLevel:
+            getRiskLevel(
+              securityScore
+            ),
 
-        totalIssues:
-          issues.length,
+          filesScanned:
+            files.length,
 
-        critical,
+          issuesFound:
+            issues.length,
 
-        high,
+          critical,
+          high,
+          medium,
+          low,
+        },
 
-        medium,
+        issues,
+      };
 
-        low,
-
-        securityScore,
-
-        securityLabel,
-      },
-
-      issues,
-    });
+    return NextResponse.json(
+      result
+    );
   } catch (error) {
     console.error(
-      "Security Scan Error:",
+      "Security analysis error:",
       error
     );
 
     return NextResponse.json(
       {
         error:
-          "Security scan failed.",
+          error instanceof Error
+            ? error.message
+            : "Security analysis failed",
       },
       {
         status: 500,

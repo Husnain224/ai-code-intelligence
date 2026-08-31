@@ -1,81 +1,75 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type FileData = {
-  path: string;
-  totalLines: number;
-  codeLines: number;
-  todoCount: number;
-  consoleCount: number;
-  longLines: number;
-  functionCount: number;
+type SecurityIssue = {
+  file: string;
+  line: number;
+  type: string;
+  severity: "Critical" | "High" | "Medium" | "Low";
+  message: string;
+  code: string;
 };
 
-type AnalysisData = {
+type SecurityData = {
   repository: string;
   branch: string;
+
   summary: {
-    filesAnalyzed: number;
-    totalLines: number;
-    totalTodos: number;
-    totalConsoleStatements: number;
-    qualityScore: number;
-    qualityLabel: string;
-    bugRisk: number;
+    securityScore: number;
+    riskLevel: string;
+    filesScanned: number;
+    issuesFound: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
   };
-  files: FileData[];
+
+  issues: SecurityIssue[];
 };
 
-export default function SemanticSearchPage() {
+export default function SecurityDashboard() {
   const router = useRouter();
 
-  const [analysis, setAnalysis] =
-    useState<AnalysisData | null>(null);
-
-  const [query, setQuery] = useState("");
+  const [data, setData] =
+    useState<SecurityData | null>(null);
 
   const [loading, setLoading] =
     useState(true);
 
-  const [searching, setSearching] =
-    useState(false);
-
   const [error, setError] =
     useState("");
 
-  const [results, setResults] =
-    useState<FileData[]>([]);
-
-  async function loadAnalysis() {
+  async function runSecurityScan() {
     try {
       setLoading(true);
       setError("");
 
       const response = await fetch(
-        "/api/analyze/full?owner=Husnain224&repo=ai-code-intelligence",
+        "/api/security?owner=Husnain224&repo=ai-code-intelligence&branch=main",
         {
           cache: "no-store",
         }
       );
 
-      const data = await response.json();
+      const result =
+        await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.error || "Analysis failed"
+          result.error ||
+            "Security scan failed"
         );
       }
 
-      setAnalysis(data);
-      setResults(data.files ?? []);
+      setData(result);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Analysis failed"
+          : "Security scan failed"
       );
     } finally {
       setLoading(false);
@@ -83,55 +77,11 @@ export default function SemanticSearchPage() {
   }
 
   useEffect(() => {
-    loadAnalysis();
+    runSecurityScan();
   }, []);
 
-  function performSearch() {
-    const searchText =
-      query.trim().toLowerCase();
-
-    if (!searchText) {
-      setResults(
-        analysis?.files ?? []
-      );
-      return;
-    }
-
-    setSearching(true);
-
-    const files =
-      analysis?.files ?? [];
-
-    const filtered = files.filter(
-      (file) => {
-        const searchableText =
-          [
-            file.path,
-            file.totalLines.toString(),
-            file.codeLines.toString(),
-            file.functionCount.toString(),
-          ]
-            .join(" ")
-            .toLowerCase();
-
-        return searchableText.includes(
-          searchText
-        );
-      }
-    );
-
-    setTimeout(() => {
-      setResults(filtered);
-      setSearching(false);
-    }, 300);
-  }
-
-  function handleSearch(
-    event: React.FormEvent
-  ) {
-    event.preventDefault();
-    performSearch();
-  }
+  const summary =
+    data?.summary;
 
   return (
     <main className="dashboard-page">
@@ -154,91 +104,90 @@ export default function SemanticSearchPage() {
 
         <nav className="dashboard-nav">
 
-          <button
-            className="dashboard-nav-item"
+          <NavItem
+            icon="▦"
+            label="Overview"
             onClick={() =>
               router.push(
                 "/dashboard"
               )
             }
-          >
-            <span>▦</span>
-            Overview
-          </button>
+          />
 
-          <button
-            className="dashboard-nav-item"
+          <NavItem
+            icon="⌘"
+            label="Code Analysis"
             onClick={() =>
               router.push(
                 "/dashboard/analysis"
               )
             }
-          >
-            <span>⌘</span>
-            Code Analysis
-          </button>
+          />
 
-          <button
-            className="dashboard-nav-item"
+          <NavItem
+            icon="◇"
+            label="Security"
+            active
             onClick={() =>
               router.push(
                 "/dashboard/security"
               )
             }
-          >
-            <span>◇</span>
-            Security
-          </button>
+          />
 
-          <button
-            className="dashboard-nav-item"
+          <NavItem
+            icon="△"
+            label="Bug Prediction"
             onClick={() =>
               router.push(
                 "/dashboard/bugs"
               )
             }
-          >
-            <span>△</span>
-            Bug Prediction
-          </button>
+          />
 
-          <button
-            className="dashboard-nav-item"
+          <NavItem
+            icon="◈"
+            label="Technical Debt"
             onClick={() =>
               router.push(
-                "/dashboard/technical-debt"
+                "/dashboard/debt"
               )
             }
-          >
-            <span>◈</span>
-            Technical Debt
-          </button>
+          />
 
-          <button
-            className="dashboard-nav-item active"
+          <NavItem
+            icon="⌕"
+            label="Semantic Search"
             onClick={() =>
               router.push(
                 "/dashboard/search"
               )
             }
-          >
-            <span>⌕</span>
-            Semantic Search
-          </button>
+          />
 
-          <button className="dashboard-nav-item">
-            <span>✦</span>
-            AI Assistant
-          </button>
+          <NavItem
+            icon="✦"
+            label="AI Assistant"
+            onClick={() =>
+              router.push(
+                "/dashboard/assistant"
+              )
+            }
+          />
 
         </nav>
 
         <div className="sidebar-bottom">
 
-          <button className="dashboard-nav-item">
-            <span>⚙</span>
-            Settings
-          </button>
+          <NavItem
+            icon="⚙"
+            label="Settings"
+            onClick={() =>
+              router.push(
+                "/dashboard/settings"
+              )
+            }
+          />
 
           <div className="user-card">
 
@@ -264,21 +213,22 @@ export default function SemanticSearchPage() {
 
       </aside>
 
-      {/* MAIN CONTENT */}
+      {/* MAIN */}
 
       <section className="dashboard-main">
+
+        {/* HEADER */}
 
         <header className="dashboard-header">
 
           <div>
 
             <p className="breadcrumb">
-              Workspace / Repository /
-              Semantic Search
+              Workspace / Security
             </p>
 
             <h1>
-              Semantic Search
+              Security Analysis
             </h1>
 
           </div>
@@ -287,13 +237,15 @@ export default function SemanticSearchPage() {
 
             <button
               className="header-button"
-              onClick={loadAnalysis}
+              onClick={
+                runSecurityScan
+              }
               disabled={loading}
             >
               ↻{" "}
               {loading
-                ? "Loading..."
-                : "Refresh"}
+                ? "Scanning..."
+                : "Run Security Scan"}
             </button>
 
           </div>
@@ -303,19 +255,22 @@ export default function SemanticSearchPage() {
         {/* ERROR */}
 
         {error && (
-
           <div
             style={{
-              marginBottom: "20px",
-              padding: "15px",
-              borderRadius: "10px",
-              background: "#fee2e2",
-              color: "#991b1b",
+              padding:
+                "14px 18px",
+              marginBottom:
+                "20px",
+              background:
+                "#fee2e2",
+              color:
+                "#991b1b",
+              borderRadius:
+                "8px",
             }}
           >
             {error}
           </div>
-
         )}
 
         {/* REPOSITORY */}
@@ -345,14 +300,14 @@ export default function SemanticSearchPage() {
 
           <div className="repository-status">
 
-            <span className="online-dot"></span>
+            <span className="online-dot" />
 
             {loading
-              ? "Loading repository..."
-              : "Repository indexed"}
+              ? "Scanning repository..."
+              : "Security scan complete"}
 
             <span className="branch">
-              {analysis?.branch ??
+              {data?.branch ||
                 "main"}
             </span>
 
@@ -360,150 +315,303 @@ export default function SemanticSearchPage() {
 
         </div>
 
-        {/* SEARCH */}
+        {/* SECURITY SCORE */}
 
         <section className="dashboard-section">
 
-          <div className="dashboard-card">
+          <div className="health-card">
 
-            <div className="card-header">
+            <div className="health-score">
 
-              <div>
+              <span>
+                Security Score
+              </span>
 
-                <h2>
-                  Search Your Codebase
-                </h2>
+              <strong>
+                {loading
+                  ? "..."
+                  : summary
+                    ?.securityScore}
+              </strong>
 
-                <p>
-                  Find files using names,
-                  paths, and repository
-                  metadata.
-                </p>
+              <small>
+                {loading
+                  ? "Scanning"
+                  : summary
+                    ?.riskLevel}
+              </small>
+
+            </div>
+
+            <div
+              style={{
+                flex: 1,
+                padding:
+                  "10px 20px",
+              }}
+            >
+
+              <h2>
+                Repository Security
+              </h2>
+
+              <p>
+                Static security
+                analysis of your
+                GitHub repository.
+              </p>
+
+              <div
+                style={{
+                  marginTop:
+                    "20px",
+                  height:
+                    "12px",
+                  background:
+                    "#e5e7eb",
+                  borderRadius:
+                    "10px",
+                  overflow:
+                    "hidden",
+                }}
+              >
+
+                <div
+                  style={{
+                    width: `${
+                      summary
+                        ?.securityScore ||
+                      0
+                    }%`,
+                    height: "100%",
+                    background:
+                      summary
+                        ?.securityScore &&
+                      summary.securityScore <
+                        50
+                        ? "#dc2626"
+                        : "#16a34a",
+                    transition:
+                      "width 0.5s",
+                  }}
+                />
 
               </div>
 
             </div>
 
-            <form
-              onSubmit={handleSearch}
-              style={{
-                display: "flex",
-                gap: "12px",
-                padding:
-                  "20px 25px 30px",
-              }}
-            >
-
-              <input
-                type="text"
-                value={query}
-                onChange={(event) =>
-                  setQuery(
-                    event.target.value
-                  )
-                }
-                placeholder="Search files, components, functions..."
-                style={{
-                  flex: 1,
-                  padding:
-                    "14px 16px",
-                  border:
-                    "1px solid #d1d5db",
-                  borderRadius:
-                    "8px",
-                  fontSize:
-                    "15px",
-                  outline: "none",
-                }}
-              />
-
-              <button
-                type="submit"
-                className="primary-small"
-                disabled={
-                  loading ||
-                  searching
-                }
-              >
-                {searching
-                  ? "Searching..."
-                  : "Search"}
-              </button>
-
-            </form>
-
           </div>
 
         </section>
 
-        {/* SEARCH STATS */}
+        {/* SECURITY METRICS */}
 
         <section className="dashboard-section">
 
           <div className="metrics-dashboard">
 
-            <DashboardMetric
-              title="Files Indexed"
+            <SecurityMetric
+              title="Critical"
               value={
                 loading
                   ? "..."
                   : String(
-                      analysis?.summary
-                        ?.filesAnalyzed ??
+                      summary
+                        ?.critical ||
                         0
                     )
               }
-              suffix=""
-              trend="Live"
-              description="Repository files"
+              description="Immediate action"
             />
 
-            <DashboardMetric
-              title="Results"
+            <SecurityMetric
+              title="High"
               value={
                 loading
                   ? "..."
                   : String(
-                      results.length
-                    )
-              }
-              suffix=""
-              trend="Current"
-              description="Matching files"
-            />
-
-            <DashboardMetric
-              title="Lines Indexed"
-              value={
-                loading
-                  ? "..."
-                  : String(
-                      analysis?.summary
-                        ?.totalLines ??
+                      summary
+                        ?.high ||
                         0
                     )
               }
-              suffix=""
-              trend="Indexed"
-              description="Total lines"
+              description="High priority"
             />
 
-            <DashboardMetric
-              title="Branch"
+            <SecurityMetric
+              title="Medium"
               value={
-                analysis?.branch ??
-                "main"
+                loading
+                  ? "..."
+                  : String(
+                      summary
+                        ?.medium ||
+                        0
+                    )
               }
-              suffix=""
-              trend="Active"
-              description="Repository branch"
+              description="Review required"
+            />
+
+            <SecurityMetric
+              title="Low"
+              value={
+                loading
+                  ? "..."
+                  : String(
+                      summary
+                        ?.low ||
+                        0
+                    )
+              }
+              description="Minor issues"
             />
 
           </div>
 
         </section>
 
-        {/* RESULTS */}
+        {/* SCAN STATISTICS */}
+
+        <section className="dashboard-section">
+
+          <div className="dashboard-grid">
+
+            <div className="dashboard-card">
+
+              <div className="card-header">
+
+                <div>
+
+                  <h2>
+                    Scan Statistics
+                  </h2>
+
+                  <p>
+                    Security analysis
+                    information.
+                  </p>
+
+                </div>
+
+              </div>
+
+              <div className="activity-list">
+
+                <StatRow
+                  icon="#"
+                  title="Files Scanned"
+                  value={
+                    loading
+                      ? "..."
+                      : String(
+                          summary
+                            ?.filesScanned ||
+                            0
+                        )
+                  }
+                />
+
+                <StatRow
+                  icon="!"
+                  title="Issues Found"
+                  value={
+                    loading
+                      ? "..."
+                      : String(
+                          summary
+                            ?.issuesFound ||
+                            0
+                        )
+                  }
+                />
+
+                <StatRow
+                  icon="✓"
+                  title="Security Score"
+                  value={
+                    loading
+                      ? "..."
+                      : `${summary?.securityScore || 0}/100`
+                  }
+                />
+
+                <StatRow
+                  icon="◇"
+                  title="Risk Level"
+                  value={
+                    loading
+                      ? "..."
+                      : summary
+                          ?.riskLevel ||
+                        "Unknown"
+                  }
+                />
+
+              </div>
+
+            </div>
+
+            <div className="dashboard-card">
+
+              <div className="card-header">
+
+                <div>
+
+                  <h2>
+                    Detected Categories
+                  </h2>
+
+                  <p>
+                    Security patterns
+                    checked by the
+                    analyzer.
+                  </p>
+
+                </div>
+
+              </div>
+
+              <div className="activity-list">
+
+                <StatRow
+                  icon="🔑"
+                  title="Hardcoded Secrets"
+                  value="Checked"
+                />
+
+                <StatRow
+                  icon="⚠"
+                  title="XSS Patterns"
+                  value="Checked"
+                />
+
+                <StatRow
+                  icon="▣"
+                  title="SQL Injection"
+                  value="Checked"
+                />
+
+                <StatRow
+                  icon="⌘"
+                  title="Command Execution"
+                  value="Checked"
+                />
+
+                <StatRow
+                  icon="🔒"
+                  title="TLS Configuration"
+                  value="Checked"
+                />
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        {/* ISSUES */}
 
         <section className="dashboard-section">
 
@@ -514,98 +622,81 @@ export default function SemanticSearchPage() {
               <div>
 
                 <h2>
-                  Search Results
+                  Security Issues
                 </h2>
 
                 <p>
-                  {query
-                    ? `Results for "${query}"`
-                    : "All indexed files"}
+                  Potential security
+                  problems discovered
+                  in your repository.
                 </p>
 
               </div>
 
             </div>
 
-            <div className="risk-table">
-
-              <div className="risk-table-header">
-
-                <span>
-                  FILE
-                </span>
-
-                <span>
-                  LINES
-                </span>
-
-                <span>
-                  FUNCTIONS
-                </span>
-
-                <span>
-                  ISSUES
-                </span>
-
-              </div>
+            <div className="security-issues">
 
               {loading ? (
 
                 <div
                   className="risk-table-row"
                 >
-
-                  <span>
-                    Indexing repository...
-                  </span>
-
+                  Scanning files...
                 </div>
 
-              ) : results.length ===
-                0 ? (
+              ) : !data ||
+                data.issues.length ===
+                  0 ? (
 
                 <div
-                  className="risk-table-row"
+                  style={{
+                    padding:
+                      "30px",
+                    textAlign:
+                      "center",
+                  }}
                 >
 
-                  <span>
-                    No matching files
-                    found.
-                  </span>
+                  <div
+                    style={{
+                      fontSize:
+                        "36px",
+                      marginBottom:
+                        "10px",
+                    }}
+                  >
+                    ✓
+                  </div>
+
+                  <strong>
+                    No security
+                    issues detected
+                  </strong>
+
+                  <p>
+                    The current
+                    static analyzer
+                    did not find
+                    any known
+                    security
+                    patterns.
+                  </p>
 
                 </div>
 
               ) : (
 
-                results.map(
-                  (file) => (
+                data.issues.map(
+                  (
+                    issue,
+                    index
+                  ) => (
 
-                    <div
-                      className="risk-table-row"
-                      key={file.path}
-                    >
-
-                      <span
-                        className="file-name"
-                      >
-                        {file.path}
-                      </span>
-
-                      <span>
-                        {file.codeLines}
-                      </span>
-
-                      <span>
-                        {file.functionCount}
-                      </span>
-
-                      <span>
-                        {file.todoCount +
-                          file.consoleCount +
-                          file.longLines}
-                      </span>
-
-                    </div>
+                    <SecurityIssueRow
+                      key={`${issue.file}-${issue.line}-${index}`}
+                      issue={issue}
+                    />
 
                   )
                 )
@@ -618,47 +709,66 @@ export default function SemanticSearchPage() {
 
         </section>
 
-        {/* SEARCH EXAMPLES */}
+        {/* INFORMATION */}
 
         <section className="dashboard-section">
 
-          <div className="dashboard-grid">
+          <div className="dashboard-card">
 
-            <SearchExample
-              title="Components"
-              query="components"
-              onSearch={(value) => {
-                setQuery(value);
-                setTimeout(
-                  performSearch,
-                  0
-                );
-              }}
-            />
+            <div className="card-header">
 
-            <SearchExample
-              title="Dashboard"
-              query="dashboard"
-              onSearch={(value) => {
-                setQuery(value);
-                setTimeout(
-                  performSearch,
-                  0
-                );
-              }}
-            />
+              <div>
 
-            <SearchExample
-              title="TypeScript"
-              query=".tsx"
-              onSearch={(value) => {
-                setQuery(value);
-                setTimeout(
-                  performSearch,
-                  0
-                );
+                <h2>
+                  Security Scanner
+                </h2>
+
+                <p>
+                  Current scanner
+                  performs static
+                  pattern-based
+                  analysis.
+                </p>
+
+              </div>
+
+            </div>
+
+            <div
+              style={{
+                padding:
+                  "10px 0",
+                lineHeight:
+                  "1.7",
               }}
-            />
+            >
+
+              <p>
+                The scanner currently
+                checks source files
+                for common security
+                patterns including
+                hardcoded secrets,
+                API keys, unsafe
+                eval usage, XSS
+                patterns, SQL
+                injection patterns,
+                command execution,
+                disabled TLS
+                verification, and
+                insecure HTTP
+                connections.
+              </p>
+
+              <p>
+                This is a static
+                analysis tool and
+                does not guarantee
+                that a repository is
+                completely secure.
+              </p>
+
+            </div>
 
           </div>
 
@@ -670,19 +780,53 @@ export default function SemanticSearchPage() {
   );
 }
 
-/* METRIC */
 
-function DashboardMetric({
+/* ================================================= */
+/* NAVIGATION ITEM */
+/* ================================================= */
+
+function NavItem({
+  icon,
+  label,
+  active = false,
+  onClick,
+}: {
+  icon: string;
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`dashboard-nav-item ${
+        active ? "active" : ""
+      }`}
+    >
+
+      <span>
+        {icon}
+      </span>
+
+      {label}
+
+    </button>
+  );
+}
+
+
+/* ================================================= */
+/* SECURITY METRIC */
+/* ================================================= */
+
+function SecurityMetric({
   title,
   value,
-  suffix,
-  trend,
   description,
 }: {
   title: string;
   value: string;
-  suffix: string;
-  trend: string;
   description: string;
 }) {
   return (
@@ -694,7 +838,7 @@ function DashboardMetric({
           {title}
         </span>
 
-        <span className="metric-menu">
+        <span>
           •••
         </span>
 
@@ -706,16 +850,12 @@ function DashboardMetric({
           {value}
         </strong>
 
-        <span>
-          {suffix}
-        </span>
-
       </div>
 
       <div className="metric-bottom">
 
         <span className="metric-trend">
-          {trend}
+          Security
         </span>
 
         <span>
@@ -728,53 +868,143 @@ function DashboardMetric({
   );
 }
 
-/* SEARCH EXAMPLE */
 
-function SearchExample({
+/* ================================================= */
+/* STAT ROW */
+/* ================================================= */
+
+function StatRow({
+  icon,
   title,
-  query,
-  onSearch,
+  value,
 }: {
+  icon: string;
   title: string;
-  query: string;
-  onSearch: (value: string) => void;
+  value: string;
 }) {
   return (
-    <div className="dashboard-card">
+    <div className="activity-item">
 
-      <div className="card-header">
+      <div className="activity-icon">
+        {icon}
+      </div>
 
-        <div>
+      <div className="activity-content">
 
-          <h2>
-            {title}
-          </h2>
+        <strong>
+          {title}
+        </strong>
 
-          <p>
-            Search for "{query}"
-          </p>
-
-        </div>
+        <span>
+          {value}
+        </span>
 
       </div>
+
+    </div>
+  );
+}
+
+
+/* ================================================= */
+/* SECURITY ISSUE */
+/* ================================================= */
+
+function SecurityIssueRow({
+  issue,
+}: {
+  issue: SecurityIssue;
+}) {
+  const severityClass =
+    issue.severity ===
+    "Critical"
+      ? "risk-high"
+      : issue.severity ===
+        "High"
+      ? "risk-high"
+      : "risk-medium";
+
+  return (
+    <div
+      style={{
+        padding:
+          "18px 0",
+        borderBottom:
+          "1px solid #e5e7eb",
+      }}
+    >
 
       <div
         style={{
-          padding:
-            "20px 25px",
+          display:
+            "flex",
+          justifyContent:
+            "space-between",
+          alignItems:
+            "center",
+          gap: "15px",
+          marginBottom:
+            "8px",
         }}
       >
 
-        <button
-          className="text-button"
-          onClick={() =>
-            onSearch(query)
+        <div>
+
+          <strong>
+            {issue.type}
+          </strong>
+
+          <div
+            style={{
+              marginTop:
+                "4px",
+              fontSize:
+                "13px",
+              color:
+                "#6b7280",
+            }}
+          >
+            {issue.file}
+            :
+            {issue.line}
+          </div>
+
+        </div>
+
+        <span
+          className={
+            severityClass
           }
         >
-          Search →
-        </button>
+          {issue.severity}
+        </span>
 
       </div>
+
+      <p>
+        {issue.message}
+      </p>
+
+      <code
+        style={{
+          display:
+            "block",
+          marginTop:
+            "10px",
+          padding:
+            "10px",
+          background:
+            "#f3f4f6",
+          borderRadius:
+            "6px",
+          fontSize:
+            "12px",
+          overflowX:
+            "auto",
+        }}
+      >
+        {issue.code}
+      </code>
 
     </div>
   );

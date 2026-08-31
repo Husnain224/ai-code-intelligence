@@ -1,71 +1,60 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
-type FileData = {
-  path: string;
-  totalLines: number;
-  codeLines: number;
-  todoCount: number;
-  consoleCount: number;
-  longLines: number;
-  functionCount: number;
+type SecurityIssue = {
+  file: string;
+  line: number;
+  type: string;
+  severity: "Critical" | "High" | "Medium" | "Low";
+  message: string;
+  code: string;
 };
 
-type AnalysisData = {
+type SecurityData = {
   repository: string;
   branch: string;
   summary: {
-    filesAnalyzed: number;
-    totalLines: number;
-    totalTodos: number;
-    totalConsoleStatements: number;
-    qualityScore: number;
-    qualityLabel: string;
-    bugRisk: number;
+    filesScanned: number;
+    totalIssues: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    securityScore: number;
+    securityLabel: string;
   };
-  files: FileData[];
+  issues: SecurityIssue[];
 };
 
 export default function SecurityPage() {
-  const router = useRouter();
+  const [data, setData] = useState<SecurityData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [analysis, setAnalysis] =
-    useState<AnalysisData | null>(null);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
-
-  async function loadAnalysis() {
+  async function runSecurityScan() {
     try {
       setLoading(true);
       setError("");
 
       const response = await fetch(
-        "/api/analyze/full?owner=Husnain224&repo=ai-code-intelligence",
-        {
-          cache: "no-store",
-        }
+        "/api/security?owner=Husnain224&repo=ai-code-intelligence"
       );
 
-      const data = await response.json();
+      const result = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.error || "Analysis failed"
+          result.error || "Security scan failed"
         );
       }
 
-      setAnalysis(data);
+      setData(result);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Analysis failed"
+          : "Security scan failed"
       );
     } finally {
       setLoading(false);
@@ -73,783 +62,569 @@ export default function SecurityPage() {
   }
 
   useEffect(() => {
-    loadAnalysis();
+    runSecurityScan();
   }, []);
 
-  const files = analysis?.files ?? [];
-
-  /*
-   * Simple security rules.
-   *
-   * Later we will replace this with
-   * a real security scanner.
-   */
-
-  const securityIssues = files.flatMap(
-    (file) => {
-      const issues = [];
-
-      if (file.consoleCount > 0) {
-        issues.push({
-          file: file.path,
-          severity: "Medium",
-          type: "Console Statement",
-          description:
-            "Console statements may expose debugging information.",
-        });
-      }
-
-      if (file.longLines > 5) {
-        issues.push({
-          file: file.path,
-          severity: "Low",
-          type: "Long Lines",
-          description:
-            "Large lines may reduce code readability and maintainability.",
-        });
-      }
-
-      if (file.todoCount > 0) {
-        issues.push({
-          file: file.path,
-          severity: "Medium",
-          type: "TODO / FIXME",
-          description:
-            "Unresolved development markers were detected.",
-        });
-      }
-
-      return issues;
-    }
-  );
-
-  const highIssues =
-    securityIssues.filter(
-      (issue) =>
-        issue.severity === "High"
-    ).length;
-
-  const mediumIssues =
-    securityIssues.filter(
-      (issue) =>
-        issue.severity === "Medium"
-    ).length;
-
-  const lowIssues =
-    securityIssues.filter(
-      (issue) =>
-        issue.severity === "Low"
-    ).length;
-
-  const securityScore = Math.max(
-    0,
-    100 -
-      highIssues * 20 -
-      mediumIssues * 8 -
-      lowIssues * 3
-  );
+  const summary = data?.summary;
 
   return (
     <main className="dashboard-page">
-
       {/* SIDEBAR */}
 
       <aside className="dashboard-sidebar">
-
         <div className="dashboard-logo">
+          <div className="logo-icon">AI</div>
 
-          <div className="logo-icon">
-            AI
-          </div>
-
-          <span>
-            Code Intelligence
-          </span>
-
+          <span>Code Intelligence</span>
         </div>
 
         <nav className="dashboard-nav">
-
-          <button
+          <a
+            href="/dashboard"
             className="dashboard-nav-item"
-            onClick={() =>
-              router.push("/dashboard")
-            }
           >
             <span>▦</span>
             Overview
-          </button>
+          </a>
 
-          <button
+          <a
+            href="/dashboard/analysis"
             className="dashboard-nav-item"
-            onClick={() =>
-              router.push(
-                "/dashboard/analysis"
-              )
-            }
           >
             <span>⌘</span>
             Code Analysis
-          </button>
+          </a>
 
-          <button
+          <a
+            href="/dashboard/security"
             className="dashboard-nav-item active"
-            onClick={() =>
-              router.push(
-                "/dashboard/security"
-              )
-            }
           >
             <span>◇</span>
             Security
-          </button>
+          </a>
 
-          <button
+          <a
+            href="/dashboard/bugs"
             className="dashboard-nav-item"
-            onClick={() =>
-              router.push(
-                "/dashboard/bugs"
-              )
-            }
           >
             <span>△</span>
             Bug Prediction
-          </button>
+          </a>
 
-          <button className="dashboard-nav-item">
+          <a
+            href="/dashboard/debt"
+            className="dashboard-nav-item"
+          >
             <span>◈</span>
             Technical Debt
-          </button>
+          </a>
 
-          <button className="dashboard-nav-item">
+          <a
+            href="/dashboard/search"
+            className="dashboard-nav-item"
+          >
             <span>⌕</span>
             Semantic Search
-          </button>
+          </a>
 
-          <button className="dashboard-nav-item">
+          <a
+            href="/dashboard/assistant"
+            className="dashboard-nav-item"
+          >
             <span>✦</span>
             AI Assistant
-          </button>
-
+          </a>
         </nav>
 
         <div className="sidebar-bottom">
-
           <button className="dashboard-nav-item">
             <span>⚙</span>
             Settings
           </button>
 
           <div className="user-card">
-
-            <div className="user-avatar">
-              HS
-            </div>
+            <div className="user-avatar">HS</div>
 
             <div>
+              <strong>Developer</strong>
 
-              <strong>
-                Developer
-              </strong>
-
-              <span>
-                Free Plan
-              </span>
-
+              <span>Free Plan</span>
             </div>
-
           </div>
-
         </div>
-
       </aside>
 
       {/* MAIN */}
 
       <section className="dashboard-main">
+        {/* HEADER */}
 
         <header className="dashboard-header">
-
           <div>
-
             <p className="breadcrumb">
-              Workspace / Repository /
-              Security
+              Workspace / Security
             </p>
 
-            <h1>
-              Security Analysis
-            </h1>
-
+            <h1>Security Analysis</h1>
           </div>
 
           <div className="dashboard-actions">
-
             <button
               className="header-button"
-              onClick={loadAnalysis}
+              onClick={runSecurityScan}
               disabled={loading}
             >
               ↻{" "}
               {loading
                 ? "Scanning..."
-                : "Scan Again"}
+                : "Run Security Scan"}
             </button>
-
           </div>
-
         </header>
+
+        {/* ERROR */}
+
+        {error && (
+          <div
+            style={{
+              padding: "14px 18px",
+              marginBottom: "20px",
+              background: "#fee2e2",
+              color: "#991b1b",
+              borderRadius: "10px",
+            }}
+          >
+            {error}
+          </div>
+        )}
 
         {/* REPOSITORY */}
 
         <div className="repository-bar">
-
           <div className="repository-info">
-
-            <div className="github-icon">
-              GH
-            </div>
+            <div className="github-icon">GH</div>
 
             <div>
-
               <strong>
                 ai-code-intelligence
               </strong>
 
               <span>
-                Husnain224 /
-                ai-code-intelligence
+                Husnain224 / ai-code-intelligence
               </span>
-
             </div>
-
           </div>
 
           <div className="repository-status">
-
             <span className="online-dot"></span>
 
             {loading
-              ? "Security scan running..."
+              ? "Scanning repository..."
               : "Security scan complete"}
 
             <span className="branch">
-              {analysis?.branch ?? "main"}
+              {data?.branch || "main"}
             </span>
-
           </div>
-
         </div>
 
-        {/* ERROR */}
+        {/* SECURITY SCORE */}
 
-        {error && (
+        <section className="dashboard-section">
+          <div className="security-hero-card">
+            <div className="security-score-container">
+              <div className="security-score-circle">
+                <strong>
+                  {loading
+                    ? "..."
+                    : summary?.securityScore ?? 0}
+                </strong>
 
-          <div
-            style={{
-              marginTop: "20px",
-              padding: "16px",
-              borderRadius: "10px",
-              background: "#fee2e2",
-              color: "#991b1b",
-            }}
-          >
-            {error}
+                <span>/100</span>
+              </div>
+
+              <div className="security-score-info">
+                <p>Security Score</p>
+
+                <h2>
+                  {loading
+                    ? "Analyzing..."
+                    : summary?.securityLabel ??
+                      "Unknown"}
+                </h2>
+
+                <span>
+                  Automated security analysis
+                  of your repository.
+                </span>
+              </div>
+            </div>
+
+            <div className="security-status">
+              <div className="security-status-dot"></div>
+
+              <div>
+                <strong>
+                  {loading
+                    ? "Scanning"
+                    : "Repository Secure"}
+                </strong>
+
+                <span>
+                  {loading
+                    ? "Please wait..."
+                    : "No security vulnerabilities detected"}
+                </span>
+              </div>
+            </div>
           </div>
-
-        )}
+        </section>
 
         {/* SECURITY METRICS */}
 
         <section className="dashboard-section">
-
           <div className="metrics-dashboard">
-
-            <DashboardMetric
-              title="Security Score"
+            <SecurityMetric
+              title="Files Scanned"
               value={
                 loading
                   ? "..."
-                  : String(securityScore)
+                  : String(
+                      summary?.filesScanned ?? 0
+                    )
               }
-              suffix="/100"
-              trend="Live"
-              description={
-                securityScore >= 90
-                  ? "Secure"
-                  : securityScore >= 70
-                  ? "Needs Attention"
-                  : "At Risk"
-              }
+              description="Source files analyzed"
             />
 
-            <DashboardMetric
+            <SecurityMetric
+              title="Total Issues"
+              value={
+                loading
+                  ? "..."
+                  : String(
+                      summary?.totalIssues ?? 0
+                    )
+              }
+              description="Security findings"
+            />
+
+            <SecurityMetric
               title="Critical"
               value={
                 loading
                   ? "..."
-                  : String(highIssues)
+                  : String(
+                      summary?.critical ?? 0
+                    )
               }
-              suffix=""
-              trend="Detected"
-              description="Critical issues"
+              description="Critical vulnerabilities"
             />
 
-            <DashboardMetric
-              title="Medium"
+            <SecurityMetric
+              title="High"
               value={
                 loading
                   ? "..."
-                  : String(mediumIssues)
+                  : String(
+                      summary?.high ?? 0
+                    )
               }
-              suffix=""
-              trend="Detected"
-              description="Medium issues"
+              description="High-risk vulnerabilities"
             />
-
-            <DashboardMetric
-              title="Low"
-              value={
-                loading
-                  ? "..."
-                  : String(lowIssues)
-              }
-              suffix=""
-              trend="Detected"
-              description="Low issues"
-            />
-
           </div>
-
         </section>
 
-        {/* SECURITY STATUS */}
+        {/* SEVERITY OVERVIEW */}
 
         <section className="dashboard-section">
-
-          <div className="dashboard-card">
-
-            <div className="card-header">
-
-              <div>
-
-                <h2>
-                  Security Status
-                </h2>
-
-                <p>
-                  Current security posture
-                  of your repository.
-                </p>
-
-              </div>
-
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "30px",
-                padding: "30px",
-              }}
-            >
-
-              <div
-                style={{
-                  width: "140px",
-                  height: "140px",
-                  borderRadius: "50%",
-                  border:
-                    "12px solid #e5e7eb",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent:
-                    "center",
-                }}
-              >
-
-                <strong
-                  style={{
-                    fontSize: "34px",
-                  }}
-                >
-                  {loading
-                    ? "..."
-                    : securityScore}
-                </strong>
-
-                <span>
-                  /100
-                </span>
-
-              </div>
-
-              <div>
-
-                <h2>
-                  {securityScore >= 90
-                    ? "Repository is Secure"
-                    : securityScore >= 70
-                    ? "Security Needs Attention"
-                    : "Security Risk Detected"}
-                </h2>
-
-                <p>
-                  The scanner reviewed
-                  {analysis?.summary
-                    ?.filesAnalyzed ?? 0}{" "}
-                  source files for
-                  potentially problematic
-                  patterns.
-                </p>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </section>
-
-        {/* ISSUES */}
-
-        <section className="dashboard-section">
-
-          <div className="dashboard-card">
-
-            <div className="card-header">
-
-              <div>
-
-                <h2>
-                  Security Findings
-                </h2>
-
-                <p>
-                  Potential security and
-                  maintainability issues.
-                </p>
-
-              </div>
-
-            </div>
-
-            <div className="risk-table">
-
-              <div className="risk-table-header">
-
-                <span>
-                  FILE
-                </span>
-
-                <span>
-                  SEVERITY
-                </span>
-
-                <span>
-                  ISSUE
-                </span>
-
-                <span>
-                  DETAILS
-                </span>
-
-              </div>
-
-              {loading ? (
-
-                <div className="risk-table-row">
-
-                  <span>
-                    Scanning repository...
-                  </span>
-
-                </div>
-
-              ) : securityIssues.length === 0 ? (
-
-                <div className="risk-table-row">
-
-                  <span>
-                    No security issues detected.
-                  </span>
-
-                </div>
-
-              ) : (
-
-                securityIssues.map(
-                  (issue, index) => (
-
-                    <div
-                      className="risk-table-row"
-                      key={`${issue.file}-${index}`}
-                    >
-
-                      <span className="file-name">
-                        {issue.file}
-                      </span>
-
-                      <span
-                        className={
-                          issue.severity ===
-                          "High"
-                            ? "risk-high"
-                            : "risk-medium"
-                        }
-                      >
-                        {issue.severity}
-                      </span>
-
-                      <span>
-                        {issue.type}
-                      </span>
-
-                      <span>
-                        {issue.description}
-                      </span>
-
-                    </div>
-
-                  )
-                )
-
-              )}
-
-            </div>
-
-          </div>
-
-        </section>
-
-        {/* SECURITY RULES */}
-
-        <section className="dashboard-section">
-
           <div className="dashboard-grid">
+            <div className="dashboard-card">
+              <div className="card-header">
+                <div>
+                  <h2>Severity Overview</h2>
 
-            <SecurityCard
-              title="Console Exposure"
-              description="Detects console statements that may expose internal debugging information."
-              count={
-                analysis?.summary
-                  ?.totalConsoleStatements ??
-                0
-              }
-            />
+                  <p>
+                    Security findings grouped
+                    by severity.
+                  </p>
+                </div>
+              </div>
 
-            <SecurityCard
-              title="Unresolved TODOs"
-              description="Finds TODO and FIXME markers that may indicate unfinished implementation."
-              count={
-                analysis?.summary
-                  ?.totalTodos ?? 0
-              }
-            />
+              <div className="severity-list">
+                <SeverityRow
+                  label="Critical"
+                  value={
+                    summary?.critical ?? 0
+                  }
+                />
 
-            <SecurityCard
-              title="Long Code Lines"
-              description="Identifies unusually long lines that can make security reviews harder."
-              count={files.reduce(
-                (sum, file) =>
-                  sum + file.longLines,
-                0
-              )}
-            />
+                <SeverityRow
+                  label="High"
+                  value={
+                    summary?.high ?? 0
+                  }
+                />
 
+                <SeverityRow
+                  label="Medium"
+                  value={
+                    summary?.medium ?? 0
+                  }
+                />
+
+                <SeverityRow
+                  label="Low"
+                  value={
+                    summary?.low ?? 0
+                  }
+                />
+              </div>
+            </div>
+
+            {/* SCAN INFORMATION */}
+
+            <div className="dashboard-card">
+              <div className="card-header">
+                <div>
+                  <h2>Scan Information</h2>
+
+                  <p>
+                    Details about the latest
+                    security scan.
+                  </p>
+                </div>
+              </div>
+
+              <div className="activity-list">
+                <div className="activity-item">
+                  <div className="activity-icon">
+                    ✓
+                  </div>
+
+                  <div className="activity-content">
+                    <strong>
+                      Repository
+                    </strong>
+
+                    <span>
+                      {data?.repository ||
+                        "Husnain224/ai-code-intelligence"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="activity-item">
+                  <div className="activity-icon">
+                    #
+                  </div>
+
+                  <div className="activity-content">
+                    <strong>
+                      Branch
+                    </strong>
+
+                    <span>
+                      {data?.branch || "main"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="activity-item">
+                  <div className="activity-icon">
+                    ◇
+                  </div>
+
+                  <div className="activity-content">
+                    <strong>
+                      Scanner
+                    </strong>
+
+                    <span>
+                      AI Security Scanner
+                    </span>
+                  </div>
+                </div>
+
+                <div className="activity-item">
+                  <div className="activity-icon">
+                    ✓
+                  </div>
+
+                  <div className="activity-content">
+                    <strong>
+                      Status
+                    </strong>
+
+                    <span>
+                      {loading
+                        ? "Scanning..."
+                        : "Completed"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-
         </section>
 
-        {/* RECOMMENDATION */}
+        {/* SECURITY ISSUES */}
 
         <section className="dashboard-section">
-
           <div className="dashboard-card">
-
             <div className="card-header">
-
               <div>
-
-                <h2>
-                  Security Recommendations
-                </h2>
+                <h2>Security Issues</h2>
 
                 <p>
-                  Suggested improvements for
+                  Vulnerabilities detected in
                   your repository.
                 </p>
-
               </div>
 
+              {!loading && (
+                <span className="security-count">
+                  {summary?.totalIssues ?? 0} issues
+                </span>
+              )}
             </div>
 
-            <div
-              style={{
-                padding: "20px 25px",
-              }}
-            >
+            {loading ? (
+              <div className="empty-security">
+                <div className="security-loading-icon">
+                  ◌
+                </div>
 
-              <ul
-                style={{
-                  lineHeight: "2",
-                  paddingLeft: "20px",
-                }}
-              >
+                <h3>
+                  Scanning repository...
+                </h3>
 
-                <li>
-                  Remove unnecessary console
-                  statements before production.
-                </li>
+                <p>
+                  Checking your source code
+                  for security vulnerabilities.
+                </p>
+              </div>
+            ) : data?.issues &&
+              data.issues.length > 0 ? (
+              <div className="security-issues-list">
+                {data.issues.map(
+                  (issue, index) => (
+                    <div
+                      className="security-issue"
+                      key={`${issue.file}-${issue.line}-${index}`}
+                    >
+                      <div className="issue-severity">
+                        <span
+                          className={`severity-badge severity-${issue.severity.toLowerCase()}`}
+                        >
+                          {issue.severity}
+                        </span>
+                      </div>
 
-                <li>
-                  Resolve TODO and FIXME
-                  markers.
-                </li>
+                      <div className="issue-details">
+                        <strong>
+                          {issue.type}
+                        </strong>
 
-                <li>
-                  Keep functions small and
-                  focused.
-                </li>
+                        <span>
+                          {issue.file}:
+                          {issue.line}
+                        </span>
 
-                <li>
-                  Review high-risk files
-                  before deployment.
-                </li>
+                        <p>
+                          {issue.message}
+                        </p>
 
-                <li>
-                  Add automated security
-                  scanning to CI/CD.
-                </li>
+                        <code>
+                          {issue.code}
+                        </code>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            ) : (
+              <div className="empty-security">
+                <div className="security-success-icon">
+                  ✓
+                </div>
 
-              </ul>
+                <h3>
+                  No security vulnerabilities
+                  detected
+                </h3>
 
-            </div>
-
+                <p>
+                  Your scanned source files
+                  passed the current security
+                  checks.
+                </p>
+              </div>
+            )}
           </div>
-
         </section>
-
       </section>
-
     </main>
   );
 }
 
-/* ================================================= */
-/* METRIC */
-/* ================================================= */
+/* SECURITY METRIC */
 
-function DashboardMetric({
+function SecurityMetric({
   title,
   value,
-  suffix,
-  trend,
   description,
 }: {
   title: string;
   value: string;
-  suffix: string;
-  trend: string;
   description: string;
 }) {
   return (
     <div className="dashboard-metric">
-
       <div className="metric-title">
-
-        <span>
-          {title}
-        </span>
+        <span>{title}</span>
 
         <span className="metric-menu">
           •••
         </span>
-
       </div>
 
       <div className="metric-value">
-
-        <strong>
-          {value}
-        </strong>
-
-        <span>
-          {suffix}
-        </span>
-
+        <strong>{value}</strong>
       </div>
 
       <div className="metric-bottom">
-
         <span className="metric-trend">
-          {trend}
+          Live
         </span>
 
-        <span>
-          {description}
-        </span>
-
+        <span>{description}</span>
       </div>
-
     </div>
   );
 }
 
-/* ================================================= */
-/* SECURITY CARD */
-/* ================================================= */
+/* SEVERITY ROW */
 
-function SecurityCard({
-  title,
-  description,
-  count,
+function SeverityRow({
+  label,
+  value,
 }: {
-  title: string;
-  description: string;
-  count: number;
+  label: string;
+  value: number;
 }) {
   return (
-    <div className="dashboard-card">
+    <div className="severity-row">
+      <div className="severity-label">
+        <span
+          className={`severity-indicator severity-${label.toLowerCase()}`}
+        ></span>
 
-      <div className="card-header">
-
-        <div>
-
-          <h2>
-            {title}
-          </h2>
-
-          <p>
-            {description}
-          </p>
-
-        </div>
-
+        <strong>{label}</strong>
       </div>
 
-      <div
-        style={{
-          padding: "20px 25px",
-        }}
-      >
-
-        <strong
-          style={{
-            fontSize: "36px",
-          }}
-        >
-          {count}
-        </strong>
-
-        <p>
-          Findings detected
-        </p>
-
-      </div>
-
+      <span className="severity-number">
+        {value}
+      </span>
     </div>
   );
 }
